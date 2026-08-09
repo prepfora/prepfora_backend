@@ -10,10 +10,10 @@ def get_faq(page: int, limit: int) -> ReturnType[Any]:
             message="Page must be greater than 0",
         )
 
-    returnType = ReturnType(
+    return_type = ReturnType(
         success=True,
         data={"page": page, "limit": limit},
         message="Faqs returned",
         pagination=None,
     )
-    return returnType
+    return return_type

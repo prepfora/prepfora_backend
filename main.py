@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 from common.exceptions.api_exception import APIException
 
 ## ROUTES
-from modules.faq.controller import router as faq_controller
+from modules.faq.faq_controller import router as faq_controller
 ## END OF ROUTES
 
 
@@ -22,5 +22,11 @@ async def api_exception_handler(request: Request, exc: APIException):
             "pagination": exc.pagination,
         },
     )
+
+@app.get("/health")
+async def health():
+    return {
+        "status": "ok"
+    }
 
 app.include_router(faq_controller)

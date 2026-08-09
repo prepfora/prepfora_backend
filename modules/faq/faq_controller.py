@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from services.faq_service import get_faq as get_faq_service_method
+from modules.faq.faq_service import get_faq as get_faq_service_method
 
 router = APIRouter(
     prefix='/faq',
