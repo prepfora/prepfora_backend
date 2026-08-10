@@ -1,14 +1,28 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from common.exceptions.api_exception import APIException
+from contextlib import asynccontextmanager
+from common.database import Base, engine, get_db
+from fastapi import Depends, FastAPI, HTTPException
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from dotenv import load_dotenv
+load_dotenv()
 
 ## ROUTES
 from modules.faq.faq_controller import router as faq_controller
 ## END OF ROUTES
 
+### Database initialization
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
+    yield
 
-app = FastAPI()
+    await engine.dispose()
+app = FastAPI(lifespan=lifespan)
 
 ### Exception Handler
 @app.exception_handler(APIException)
