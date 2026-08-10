@@ -11,7 +11,7 @@ class Pagination(BaseModel):
 
 
 class ReturnType(BaseModel, Generic[T]):
-    success: bool
-    message: str
+    success: bool = True
+    message: str = "Operation successful"
     data: T | None = None
     pagination: Pagination | None = None

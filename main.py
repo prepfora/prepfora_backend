@@ -1,16 +1,15 @@
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from common.exceptions.api_exception import APIException
 from contextlib import asynccontextmanager
-from common.database import Base, engine, get_db
-from fastapi import Depends, FastAPI, HTTPException
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from common.database import Base, engine
 from dotenv import load_dotenv
 load_dotenv()
 
-## ROUTES
+## ROUTES IMPORT
 from modules.faq.faq_controller import router as faq_controller
+from modules.waitlist.controller import router as waitlist_controller
 ## END OF ROUTES
 
 ### Database initialization
@@ -24,7 +23,8 @@ async def lifespan(app: FastAPI):
     await engine.dispose()
 app = FastAPI(lifespan=lifespan)
 
-### Exception Handler
+
+### API Exception Handler
 @app.exception_handler(APIException)
 async def api_exception_handler(request: Request, exc: APIException):
     return JSONResponse(
@@ -37,10 +37,31 @@ async def api_exception_handler(request: Request, exc: APIException):
         },
     )
 
+### Validation Exception Handler
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = exc.errors()
+    # Extract the clean error message (removes Pydantic's "Value error, " prefix if present)
+    msg = errors[0].get("msg", "Validation error").replace("Value error, ", "") if errors else "Validation error"
+
+    return JSONResponse(
+        status_code=400,
+        content={
+            "success": False,
+            "message": msg,
+            "data": None,
+            "pagination": None,
+        },
+    )
+
+
+### HEALTH REGISTRATION
 @app.get("/health")
 async def health():
     return {
         "status": "ok"
     }
 
+### ROUTE REGISTRATION
 app.include_router(faq_controller)
+app.include_router(waitlist_controller)

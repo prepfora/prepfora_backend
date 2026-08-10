@@ -1,0 +1,34 @@
+from modules.waitlist.schema import WaitListReturnType
+from common.classes.return_type import ReturnType
+from common.exceptions.bad_request_exception import BadRequestException
+from common.logger import logger
+from modules.waitlist.service import get_waitlist_service
+from fastapi import Depends
+from modules.waitlist.service import WaitlistService
+from modules.waitlist.schema import CreateWaitListEntry
+from fastapi import APIRouter
+
+router = APIRouter(
+    prefix='/waitlist',
+    tags=['waitlist'],
+)
+
+
+@router.post("", response_model=ReturnType[WaitListReturnType], status_code=201)
+async def create_waitlist(body: CreateWaitListEntry, service: WaitlistService = Depends(get_waitlist_service)):
+    try:
+        return await service.create_wait_list_entry(body)
+    except Exception as e:
+        logger.fatal("Failed to create waitlist entry: " + str(e))
+        raise BadRequestException("Failed to create waitlist entry " + str(e))
+
+
+
+@router.get("", response_model=ReturnType[list[WaitListReturnType]], status_code=200)
+async def get_waitlist(service: WaitlistService = Depends(get_waitlist_service), page: int = 1, limit: int = 20):
+    try:
+        return await service.get_waitlist_entries(page, limit)
+    except Exception as e:
+        logger.error("Failed to get waitlist entries: " + str(e))
+        raise BadRequestException("Failed to get waitlist entries")
+        
