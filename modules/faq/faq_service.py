@@ -7,10 +7,10 @@ from fastapi import Depends
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.faq_model import Faq
+from common.logger import logger
 
 from common.classes.return_type import ReturnType, Pagination
 from common.exceptions.bad_request_exception import BadRequestException
-
 
 class FaqService:
     db: AsyncSession
@@ -20,8 +20,10 @@ class FaqService:
 
     async def get_faq(self, page: int = 1, limit: int = 20) -> ReturnType[list[Faq_Return]]:
         if page < 1:
+            logger.error("Page must be greater then 0")
             raise BadRequestException("Page must be greater than 0")
         if limit < 1:
+            logger.error("Limit must be greater than 0")
             raise BadRequestException("Limit must be greater than 0")
 
         count_stmt = select(func.count()).select_from(Faq).where(Faq.isDeleted == False)
@@ -36,7 +38,7 @@ class FaqService:
         )
         result = await self.db.execute(stmt)
         faqs = list(result.scalars().all())
-
+        logger.info("Faqs returned successfully")
         return ReturnType(
             success=True,
             message="Faqs returned successfully",
@@ -56,6 +58,7 @@ class FaqService:
         self.db.add(faq)
         await self.db.commit()
         await self.db.refresh(faq)
+        logger.info("Faq created successfully")
         return ReturnType(
             success=True,
             message="Faq created",
@@ -67,11 +70,13 @@ class FaqService:
         result = await self.db.execute(stmt)
         faq = result.scalars().first()
         if not faq:
+            logger.error("Faq not found with id: " + str(id))
             raise BadRequestException("Faq not found")
         faq.title = body.title or faq.title
         faq.description = body.description or faq.description
         await self.db.commit()
         await self.db.refresh(faq)
+        logger.info("Faq updated successfully")
         return ReturnType(
             success=True,
             message="Faq updated",
@@ -83,10 +88,12 @@ class FaqService:
         result = await self.db.execute(stmt)
         faq = result.scalars().first()
         if not faq:
+            logger.error("Faq not found with id: " + str(id))
             raise BadRequestException("Faq not found")
         faq.isDeleted = True
         await self.db.commit()
         await self.db.refresh(faq)
+        logger.info("Faq deleted successfully")
         return ReturnType(
             success=True,
             message="Faq deleted",
