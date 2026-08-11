@@ -10,6 +10,7 @@ load_dotenv()
 ## ROUTES IMPORT
 from modules.faq.faq_controller import router as faq_controller
 from modules.waitlist.controller import router as waitlist_controller
+from modules.contact_message.controller import router as contact_message_controller
 ## END OF ROUTES
 
 ### Database initialization
@@ -17,12 +18,15 @@ from modules.waitlist.controller import router as waitlist_controller
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-
     yield
-
     await engine.dispose()
-app = FastAPI(lifespan=lifespan)
 
+app = FastAPI(
+    title="Prefora Backend API",
+    description="API documentation for Prefora Backend services.",
+    version="1.0.0",
+    lifespan=lifespan,
+)
 
 ### API Exception Handler
 @app.exception_handler(APIException)
@@ -65,3 +69,4 @@ async def health():
 ### ROUTE REGISTRATION
 app.include_router(faq_controller)
 app.include_router(waitlist_controller)
+app.include_router(contact_message_controller)
