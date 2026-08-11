@@ -3,7 +3,6 @@ from pydantic import BaseModel
 
 T = TypeVar("T")
 
-
 class Pagination(BaseModel):
     total: int
     page: int

@@ -157,3 +157,8 @@ message
 2026-08-10 20:49:46,877 - app - CRITICAL - Failed to create waitlist entry: User already exists in waitlist
 2026-08-10 20:49:58,316 - app - ERROR - CHECK VALUE
 2026-08-10 20:49:58,318 - app - ERROR - None
+2026-08-11 07:46:07,071 - app - INFO - Creating contact message
+2026-08-11 07:46:08,422 - app - ERROR - Error creating contact message: AsyncSession.refresh() missing 1 required positional argument: 'instance'
+2026-08-11 07:48:26,029 - app - INFO - Creating contact message
+2026-08-11 07:49:33,321 - app - INFO - Fetching contact messages
+2026-08-11 07:49:34,459 - app - INFO - Contact messages fetched successfully

@@ -1,4 +1,3 @@
-from fastapi import security
 from common.constants.constant import ACCESS_TOKEN_EXPIRATION_TIME, ALGORITHM
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
@@ -8,10 +7,13 @@ import os
 from common.exceptions.unauthorized_exception import UnauthorizedException 
 
 SECRET_KEY = os.getenv("SECRET_KEY")
+security = HTTPBearer()
+
 
 class Access_Token_Creation_Return:
     access_token: str | None
     refresh_token: str | None
+
 
 def create_access_token(data: dict) -> Access_Token_Creation_Return:
     to_encode = data.copy()
