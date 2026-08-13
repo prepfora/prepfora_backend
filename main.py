@@ -5,6 +5,7 @@ from common.exceptions.api_exception import APIException
 from contextlib import asynccontextmanager
 from common.database import Base, engine
 from dotenv import load_dotenv
+from fastapi.middleware.cors import CORSMiddleware
 load_dotenv()
 
 ## ROUTES IMPORT
@@ -26,6 +27,14 @@ app = FastAPI(
     description="API documentation for Prefora Backend services.",
     version="1.0.0",
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 ### API Exception Handler
