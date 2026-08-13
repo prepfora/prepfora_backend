@@ -1,7 +1,5 @@
 import logging
 
-import logging
-
 logger = logging.getLogger("app")
 logger.setLevel(logging.INFO)
 
@@ -17,11 +15,3 @@ file_handler.setFormatter(formatter)
 
 logger.addHandler(console_handler)
 logger.addHandler(file_handler)
-
-# logging.basicConfig(
-#     filename="app.log",
-#     level=logging.INFO,
-#     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-# )
-
-# logger = logging.getLogger("app")
