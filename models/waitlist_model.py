@@ -12,5 +12,6 @@ class Waitlist(Base):
     first_name: Mapped[str] = mapped_column("first_name", String(50), nullable=False)
     last_name: Mapped[str] = mapped_column("last_name", String(50), nullable=False)
     email: Mapped[str] = mapped_column("email", String(100), nullable=False, unique=True)
+    phone_number: Mapped[str] = mapped_column("phone_number", String(15), nullable=True)
     
     

@@ -1,4 +1,5 @@
 
+from common.services.emaill_service import ResendPayload
 from common.classes.return_type import Pagination
 from sqlalchemy import func
 from fastapi import param_functions
@@ -13,6 +14,80 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.waitlist_model import Waitlist
 from common.exceptions.internal_server_exception import InternalServerException
+from common.services.emaill_service import send_email
+
+
+def _build_welcome_email_html(first_name: str | None = None) -> str:
+    greeting_name = first_name.strip().capitalize() if first_name and first_name.strip() else "there"
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Prefora</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f6f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f6f9; padding: 40px 16px;">
+        <tr>
+            <td align="center">
+                <table role="presentation" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);">
+                    <!-- Header -->
+                    <tr>
+                        <td style="background-color: #0f172a; padding: 32px 40px; text-align: center;">
+                            <h1 style="margin: 0; color: #ffffff; font-size: 26px; font-weight: 700; letter-spacing: -0.5px;">Prefora</h1>
+                        </td>
+                    </tr>
+                    
+                    <!-- Content Body -->
+                    <tr>
+                        <td style="padding: 40px;">
+                            <h2 style="margin: 0 0 16px 0; color: #0f172a; font-size: 22px; font-weight: 600;">
+                                You're on the waitlist! 🎉
+                            </h2>
+                            <p style="margin: 0 0 16px 0; font-size: 16px; line-height: 1.6; color: #475569;">
+                                Hi {greeting_name},
+                            </p>
+                            <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6; color: #475569;">
+                                Thank you for joining the <strong>Prefora</strong> waitlist! We are building something special, and we are thrilled to have you onboard from the ground level.
+                            </p>
+                            
+                            <!-- Highlight Box -->
+                            <div style="background-color: #f8fafc; border-left: 4px solid #2563eb; border-radius: 6px; padding: 20px; margin-bottom: 28px;">
+                                <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600; color: #1e293b;">
+                                    What to expect next:
+                                </h3>
+                                <ul style="margin: 0; padding-left: 20px; font-size: 15px; line-height: 1.6; color: #475569;">
+                                    <li style="margin-bottom: 8px;"><strong>Priority Access:</strong> You'll be among the first to get access when we launch.</li>
+                                    <li style="margin-bottom: 8px;"><strong>Exclusive Updates:</strong> We'll share behind-the-scenes progress and sneak peeks.</li>
+                                    <li><strong>Direct Input:</strong> You will get opportunities to share your feedback to help shape Prefora.</li>
+                                </ul>
+                            </div>
+                            
+                            <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6; color: #475569;">
+                                If you have any questions or ideas in the meantime, feel free to reply directly to this email—we'd love to hear from you.
+                            </p>
+                            
+                            <p style="margin: 0; font-size: 16px; line-height: 1.6; color: #475569;">
+                                Warmly,<br>
+                                <strong>The Prefora Team</strong>
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color: #f8fafc; padding: 24px 40px; text-align: center; border-top: 1px solid #e2e8f0;">
+                            <p style="margin: 0; font-size: 13px; color: #94a3b8; line-height: 1.5;">
+                                &copy; 2026 Prefora. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>"""
 
 
 class WaitlistService:
@@ -34,11 +109,20 @@ class WaitlistService:
                 email=payload.email.lower(),
                 first_name=payload.first_name,
                 last_name=payload.last_name,
+                phone_number=payload.phone_number,
             )
             self.db.add(entry)
             await self.db.commit()
             await self.db.refresh(entry)
-            ### TODO - Implement email sending with resend
+            
+            send_email(
+                payload=ResendPayload(
+                    to=entry.email,
+                    subject="Welcome to Prefora! 🎉",
+                    html=_build_welcome_email_html(entry.first_name),
+                    template=None
+                )
+            )
             return ReturnType[WaitListReturnType](
                 success=True,
                 message="Waitlist entry created successfully",
@@ -46,6 +130,7 @@ class WaitlistService:
                     email=entry.email,
                     first_name=entry.first_name,
                     last_name=entry.last_name,
+                    phone_number=entry.phone_number,
                     id=entry.id,
                     created_at=entry.created_at,
                     updated_at=entry.updated_at,

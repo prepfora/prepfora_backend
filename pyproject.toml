@@ -3,6 +3,7 @@ name = "prefora-backend"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
+    "alembic>=1.19.1",
     "fastapi>=0.141.1",
     "pydantic-settings>=2.15.0",
     "sqlalchemy>=2.0.51",
