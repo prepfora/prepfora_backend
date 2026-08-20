@@ -25,7 +25,7 @@ class WaitListReturnType(CommonSchema):
     id: UUID
     first_name: str
     last_name: str
-    phone_number: str
+    phone_number: str | None
     email: EmailStr
 
     
