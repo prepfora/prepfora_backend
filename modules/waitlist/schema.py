@@ -28,6 +28,12 @@ class WaitListReturnType(CommonSchema):
     phone_number: str | None
     email: EmailStr
 
+
+class SendWaitlistEmailPayload(BaseModel):
+    emails: list[str]
+    message: str
+    subject: str
+
     
 
     

@@ -7,6 +7,7 @@ from fastapi import Depends
 from modules.waitlist.service import WaitlistService
 from modules.waitlist.schema import CreateWaitListEntry
 from fastapi import APIRouter
+from modules.waitlist.schema import SendWaitlistEmailPayload
 
 router = APIRouter(
     prefix='/waitlist',
@@ -31,4 +32,14 @@ async def get_waitlist(service: WaitlistService = Depends(get_waitlist_service),
     except Exception as e:
         logger.error("Failed to get waitlist entries: " + str(e))
         raise BadRequestException("Failed to get waitlist entries")
+
+@router.post("/send_message", response_model=ReturnType[str], status_code=200)
+async def send_email(payload: SendWaitlistEmailPayload, service: WaitlistService = Depends(get_waitlist_service)):
+    try:
+         await service.send_email_to_users(payload.emails, payload.message, payload.subject)
+         return ReturnType[str](data="Email sent successfully")
+    except Exception as e:
+        logger.error("Failed to send email: " + str(e))
+        raise BadRequestException("Failed to send email")
+    
         
