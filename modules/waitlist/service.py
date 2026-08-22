@@ -1,4 +1,5 @@
 
+from common.services.event_emitters import Send_Email_Payload
 from common.services.emaill_service import ResendPayload
 from common.classes.return_type import Pagination
 from sqlalchemy import func
@@ -15,6 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.waitlist_model import Waitlist
 from common.exceptions.internal_server_exception import InternalServerException
 from common.services.emaill_service import send_email
+from common.services.event_emitters import ee
+# from modules.waitlist.schema import SendWaitlistEmailPayload
 
 
 def _build_welcome_email_html(first_name: str | None = None) -> str:
@@ -176,6 +179,19 @@ class WaitlistService:
         except Exception as e:
             logger.error("Error fetching waitlist entries: " + str(e))
             raise InternalServerException(str(e))
+    
+    async def send_email_to_users(self, emails: list[str], message: str, subject: str) -> ReturnType[str]:
+        if (len(emails) < 1):
+            logger.info('NO EMAIL TO SEND TO')
+            raise BadRequestException("No email to send to")
+        payload = Send_Email_Payload(
+            emails=emails,
+            message=message,
+            subject=subject
+        )
+        ee.emit("send_emails", payload)
+
+    
             
         
 
