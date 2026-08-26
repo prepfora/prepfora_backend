@@ -41,5 +41,13 @@ async def send_email(payload: SendWaitlistEmailPayload, service: WaitlistService
     except Exception as e:
         logger.error("Failed to send email: " + str(e))
         raise BadRequestException("Failed to send email")
+
+@router.get("/total", response_model=ReturnType[int], status_code=200)
+async def get_total_waitlist_entries(service: WaitlistService = Depends(get_waitlist_service)):
+    try:
+        return await service.get_total_waitlist_entries()
+    except Exception as e:
+        logger.error("Failed to get total waitlist entries: " + str(e))
+        raise BadRequestException("Failed to get total waitlist entries")
     
         

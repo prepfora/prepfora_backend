@@ -12,6 +12,8 @@ load_dotenv()
 from modules.faq.faq_controller import router as faq_controller
 from modules.waitlist.controller import router as waitlist_controller
 from modules.contact_message.controller import router as contact_message_controller
+from modules.universities.controller import router as universities_controller
+from modules.questions.controller import router as questions_controller
 ## END OF ROUTES
 
 ### Database initialization
@@ -79,3 +81,5 @@ async def health():
 app.include_router(faq_controller)
 app.include_router(waitlist_controller)
 app.include_router(contact_message_controller)
+app.include_router(universities_controller)
+app.include_router(questions_controller)
