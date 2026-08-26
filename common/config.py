@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     database_url: str = os.getenv("DATABASE_URL", "")
     port: int = 8000
     debug: bool = False
+    aloc_access_token: str = os.getenv("ALOC_ACCESS_TOKEN", "")
 
 
 settings = Settings()

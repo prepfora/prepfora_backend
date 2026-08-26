@@ -191,6 +191,37 @@ class WaitlistService:
         )
         ee.emit("send_emails", payload)
 
+    async def get_total_waitlist_entries(self) -> ReturnType[int]:
+        try:
+            logger.info("Fetching total waitlist entries")
+            count_stmt = select(func.count()).select_from(Waitlist).where(Waitlist.isDeleted == False)
+            total_result = await self.db.execute(count_stmt)
+            total = total_result.scalar_one()
+            logger.info("Total waitlist entries fetched successfully")
+            return ReturnType[int](
+                success=True,
+                message="Total waitlist entries fetched successfully",
+                data=total
+            )
+        except Exception as e:
+            logger.error("Error fetching total waitlist entries: " + str(e))
+            raise InternalServerException(str(e))
+
+    
+
+    
+            
+        
+
+### WAITLIST DEPENDENCY
+def get_waitlist_service(
+    db: AsyncSession = Depends(get_db),
+) -> WaitlistService:
+    return WaitlistService(db)
+
+
+#### waitlist service
+
     
             
         
