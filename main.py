@@ -14,6 +14,8 @@ from modules.waitlist.controller import router as waitlist_controller
 from modules.contact_message.controller import router as contact_message_controller
 from modules.universities.controller import router as universities_controller
 from modules.questions.controller import router as questions_controller
+from modules.subjects.controller import router as subjects_controller
+from modules.user_auth.controller import router as auth_controller
 ## END OF ROUTES
 
 ### Database initialization
@@ -83,3 +85,5 @@ app.include_router(waitlist_controller)
 app.include_router(contact_message_controller)
 app.include_router(universities_controller)
 app.include_router(questions_controller)
+app.include_router(subjects_controller)
+app.include_router(auth_controller)

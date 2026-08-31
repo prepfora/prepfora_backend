@@ -16,6 +16,11 @@ import models.admin_role_model
 import models.contact_message
 import models.faq_model
 import models.waitlist_model
+import models.user_model
+import models.otp_model
+import models.activity_model
+import models.badge_model
+import models.user_badge_model
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

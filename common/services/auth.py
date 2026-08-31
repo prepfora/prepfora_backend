@@ -6,7 +6,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import os
 from common.exceptions.unauthorized_exception import UnauthorizedException 
 
-SECRET_KEY = os.getenv("SECRET_KEY")
+SECRET_KEY = os.getenv("SECRET_KEY", "prefora_default_secret_key_2026")
 security = HTTPBearer()
 
 
@@ -15,23 +15,33 @@ class Access_Token_Creation_Return:
     refresh_token: str | None
 
 
-def create_access_token(data: dict) -> Access_Token_Creation_Return:
+def create_access_token(data: dict) -> dict:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRATION_TIME)
-    ### for refresh token
     refresh_token_expiry = datetime.now(timezone.utc) + timedelta(days=7)
     
     to_encode["exp"] = expire
     token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    to_encode['exp'] = refresh_token_expiry
-    refresh_token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return {"access_token": token, "refresh_token": refresh_token}
     
+    refresh_payload = data.copy()
+    refresh_payload["exp"] = refresh_token_expiry
+    refresh_payload["type"] = "refresh"
+    refresh_token = jwt.encode(refresh_payload, SECRET_KEY, algorithm=ALGORITHM)
+    return {"access_token": token, "refresh_token": refresh_token}
+
+
+def decode_token(token: str) -> dict:
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload
+    except JWTError:
+        raise UnauthorizedException("Invalid or expired token")
+
+
 def verify_access_token(
     credentials: HTTPAuthorizationCredentials = Depends(security)
-):
+) -> dict:
     token = credentials.credentials
-
     try:
         payload = jwt.decode(
             token,
@@ -47,7 +57,4 @@ def verify_access_token(
         return payload
 
     except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token"
-        )
+        raise UnauthorizedException("Invalid or expired token")
