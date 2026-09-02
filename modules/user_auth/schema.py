@@ -11,13 +11,8 @@ class Examination(str, Enum):
 
 
 class CreateUser(BaseModel):
-    first_name: str
-    last_name: str
     email: str
-    state: str
-    university: str
-    examinations: list[Examination]
-    current_expectation: str
+ 
 
 
 class UpdateUser(BaseModel):
@@ -41,12 +36,12 @@ class ValidateOtpRequest(BaseModel):
 class GoogleAuthRequest(BaseModel):
     id_token: str | None = None
     email: str | None = None
-    first_name: str | None = None
-    last_name: str | None = None
-    state: str | None = None
-    university: str | None = None
-    examinations: list[Examination] | None = None
-    current_expectation: str | None = None
+    # first_name: str | None = None
+    # last_name: str | None = None
+    # state: str | None = None
+    # university: str | None = None
+    # examinations: list[Examination] | None = None
+    # current_expectation: str | None = None
 
 
 class RefreshTokenRequest(BaseModel):
@@ -55,15 +50,15 @@ class RefreshTokenRequest(BaseModel):
 
 class UserResponse(BaseModel):
     id: uuid.UUID
-    first_name: str
-    last_name: str
+    first_name: str | None = None
+    last_name: str | None = None
     email: str
-    state: str
-    university: str
-    examinations: list[Examination]
-    current_expectation: str
-    prep_points: int
-    best_score: int
+    state: str | None = None
+    university: str | None = None
+    examinations: list[Examination] | None = None
+    current_expectation: str | None = None
+    prep_points: int | None = 0
+    best_score: int | None = 0
 
     class Config:
         from_attributes = True
