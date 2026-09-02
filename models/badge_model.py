@@ -18,5 +18,5 @@ class Badge(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # Relationships
-    users: Mapped[list[UserBadge]] = relationship("user", back_populates="badge")
+    users: Mapped[list[UserBadge]] = relationship("UserBadge", back_populates="badge")
     

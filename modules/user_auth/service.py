@@ -51,15 +51,9 @@ class UserService:
 
             # Create User
             user = User(
-                first_name=payload.first_name,
-                last_name=payload.last_name,
+              
                 email=email,
-                state=payload.state,
-                university=payload.university,
-                examinations=payload.examinations,
-                current_expectation=payload.current_expectation,
-                prep_points=0,
-                best_score=0,
+                
             )
             self.db.add(user)
             await self.db.commit()
@@ -82,7 +76,7 @@ class UserService:
                     ResendPayload(
                         to=email,
                         subject="Your Prefora Verification Code",
-                        html=f"Hi {payload.first_name},<br><br>Your verification code for Prefora is: <h2>{otp_code}</h2>It will expire in 10 minutes.",
+                        html=f"Hi {payload.email},<br><br>Your verification code for Prefora is: <h2>{otp_code}</h2>It will expire in 10 minutes.",
                     )
                 )
             except Exception as mail_err:
