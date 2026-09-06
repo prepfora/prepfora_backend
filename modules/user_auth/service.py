@@ -239,6 +239,8 @@ class UserService:
                     university=payload.university or "",
                     examinations=payload.examinations or [],
                     current_expectation=payload.current_expectation or "",
+                    phone=payload.phone or "",
+                    current_examination_date=payload.current_examination_date or None,
                     prep_points=0,
                     best_score=0,
                 )
@@ -340,6 +342,10 @@ class UserService:
                 user.examinations = payload.examinations
             if payload.current_expectation is not None:
                 user.current_expectation = payload.current_expectation
+            if payload.phone is not None:
+                user.phone = payload.phone
+            if payload.current_examination_date is not None:
+                user.current_examination_date = payload.current_examination_date
 
             await self.db.commit()
             await self.db.refresh(user)
