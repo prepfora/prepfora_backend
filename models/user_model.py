@@ -1,3 +1,5 @@
+from sqlalchemy import DateTime
+from datetime import datetime
 from typing import TYPE_CHECKING
 from sqlalchemy.orm import relationship
 import uuid
@@ -24,10 +26,12 @@ class User(Base):
     first_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     last_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     email: Mapped[str] = mapped_column(String(255), nullable=False)
+    phone: Mapped[str] = mapped_column(String(255), nullable=True)
     state: Mapped[str | None] = mapped_column(String(255), nullable=True)
     university: Mapped[str | None] = mapped_column(String(255), nullable=True)
     examinations: Mapped[list[Examination] | None] = mapped_column(ARRAY(SQLEnum(Examination)), nullable=True)
     current_expectation: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    current_examination_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     prep_points: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
     best_score: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
 
