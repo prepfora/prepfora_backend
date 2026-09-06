@@ -22,6 +22,9 @@ class UpdateUser(BaseModel):
     university: str | None = None
     examinations: list[Examination] | None = None
     current_expectation: str | None = None
+    phone: str | None = None
+    current_examination_date: datetime | None = None
+
 
 
 class LoginRequest(BaseModel):
@@ -54,6 +57,8 @@ class UserResponse(BaseModel):
     last_name: str | None = None
     email: str
     state: str | None = None
+    phone: str | None = None
+    current_examination_date: str | None = None
     university: str | None = None
     examinations: list[Examination] | None = None
     current_expectation: str | None = None
