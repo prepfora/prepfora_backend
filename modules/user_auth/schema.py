@@ -58,7 +58,7 @@ class UserResponse(BaseModel):
     email: str
     state: str | None = None
     phone: str | None = None
-    current_examination_date: str | None = None
+    current_examination_date: datetime | None = None
     university: str | None = None
     examinations: list[Examination] | None = None
     current_expectation: str | None = None
