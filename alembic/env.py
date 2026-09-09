@@ -21,6 +21,8 @@ import models.otp_model
 import models.activity_model
 import models.badge_model
 import models.user_badge_model
+import models.question_model
+
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
