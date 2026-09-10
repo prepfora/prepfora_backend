@@ -23,7 +23,7 @@ class UpdateUser(BaseModel):
     examinations: list[Examination] | None = None
     current_expectation: str | None = None
     phone: str | None = None
-    current_examination_date: datetime | None = None
+    current_examination_date: str | None = None
 
 
 
