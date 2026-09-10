@@ -7,7 +7,9 @@ from common.classes.return_type import ReturnType, Pagination
 from common.database import get_db
 from common.logger import logger
 from common.exceptions.bad_request_exception import BadRequestException
+import uuid
 from models.question_model import Question
+from models.examination_model import Examination
 from modules.questions.schema import (
     QuestionSingleResponse,
     QuestionMultipleResponse,
@@ -15,6 +17,9 @@ from modules.questions.schema import (
     CreateCustomQuestion,
     UpdateCustomQuestion,
     CustomQuestionReturn,
+    CreateExamination,
+    UpdateExamination,
+    ExaminationReturn,
 )
 
 ALOC_BASE_URL = "https://questions.aloc.com.ng/api/v2"
@@ -124,6 +129,43 @@ class QuestionsService:
         except Exception as e:
             logger.error(f"Error in get_multiple_questions: {str(e)}")
             raise BadRequestException(f"Failed to fetch questions: {str(e)}")
+
+    async def get_question_by_id(
+        self,
+        id: int | str,
+        subject: str = "english",
+    ) -> ReturnType[QuestionSingleResponse]:
+        try:
+            logger.info(f"Fetching question by id={id} for subject={subject}")
+            params = {"subject": subject}
+
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                response = await client.get(
+                    f"{ALOC_BASE_URL}/q-by-id/{id}",
+                    headers=self.headers,
+                    params=params,
+                )
+                if response.status_code != 200:
+                    logger.error(f"ALOC API Error: {response.text}")
+                    try:
+                        res_json = response.json()
+                        err_msg = res_json.get("error") or res_json.get("message") or "Failed to fetch question from ALOC API"
+                    except Exception:
+                        err_msg = "Failed to fetch question from ALOC API"
+                    raise BadRequestException(err_msg)
+
+                res_data = response.json()
+                single_resp = QuestionSingleResponse(**res_data)
+                return ReturnType[QuestionSingleResponse](
+                    success=True,
+                    message="Question fetched successfully",
+                    data=single_resp,
+                )
+        except BadRequestException:
+            raise
+        except Exception as e:
+            logger.error(f"Error in get_question_by_id: {str(e)}")
+            raise BadRequestException(f"Failed to fetch question: {str(e)}")
 
     # CUSTOM QUESTION CRUD OPERATIONS
 
@@ -295,6 +337,90 @@ class QuestionsService:
             message="Question deleted successfully",
             data=CustomQuestionReturn.model_validate(question),
         )
+
+    # EXAMINATION OPERATIONS
+
+    async def create_examination(
+        self, body: CreateExamination
+    ) -> ReturnType[ExaminationReturn]:
+        if not self.db:
+            raise BadRequestException("Database session not initialized")
+
+        exam_type_str = body.exam_type.value if hasattr(body.exam_type, "value") else str(body.exam_type)
+        type_str = body.type.value if hasattr(body.type, "value") else str(body.type)
+
+        examination = Examination(
+            user_id=body.user_id,
+            type=type_str,
+            subjects=body.subjects,
+            total_question=body.total_question,
+            total_score=body.total_score,
+            time=body.time,
+            total_questions_answered=body.total_questions_answered or 0,
+            total_questions_failed=body.total_questions_failed or 0,
+            questions_ids=body.questions_ids,
+            correct_questions=body.correct_questions,
+            failed_questions=body.failed_questions,
+            exam_year=body.exam_year,
+            exam_type=exam_type_str,
+        )
+        self.db.add(examination)
+        await self.db.commit()
+        await self.db.refresh(examination)
+        logger.info(f"Examination created with id={examination.id}")
+        return ReturnType[ExaminationReturn](
+            success=True,
+            message="Examination created successfully",
+            data=ExaminationReturn.model_validate(examination),
+        )
+
+    async def update_examination(
+        self, id: uuid.UUID, body: UpdateExamination
+    ) -> ReturnType[ExaminationReturn]:
+        if not self.db:
+            raise BadRequestException("Database session not initialized")
+
+        stmt = select(Examination).where(Examination.id == id)
+        result = await self.db.execute(stmt)
+        examination = result.scalars().first()
+        if not examination:
+            logger.error(f"Examination not found with id={id}")
+            raise BadRequestException(f"Examination with id {id} not found")
+
+        if body.type is not None:
+            examination.type = body.type.value if hasattr(body.type, "value") else str(body.type)
+        if body.subjects is not None:
+            examination.subjects = body.subjects
+        if body.total_question is not None:
+            examination.total_question = body.total_question
+        if body.total_score is not None:
+            examination.total_score = body.total_score
+        if body.time is not None:
+            examination.time = body.time
+        if body.total_questions_answered is not None:
+            examination.total_questions_answered = body.total_questions_answered
+        if body.total_questions_failed is not None:
+            examination.total_questions_failed = body.total_questions_failed
+        if body.questions_ids is not None:
+            examination.questions_ids = body.questions_ids
+        if body.correct_questions is not None:
+            examination.correct_questions = body.correct_questions
+        if body.failed_questions is not None:
+            examination.failed_questions = body.failed_questions
+        if body.exam_year is not None:
+            examination.exam_year = body.exam_year
+        if body.exam_type is not None:
+            examination.exam_type = body.exam_type.value if hasattr(body.exam_type, "value") else str(body.exam_type)
+
+        await self.db.commit()
+        await self.db.refresh(examination)
+        logger.info(f"Examination updated with id={id}")
+        return ReturnType[ExaminationReturn](
+            success=True,
+            message="Examination updated successfully",
+            data=ExaminationReturn.model_validate(examination),
+        )
+
 
 
 def get_questions_service(
