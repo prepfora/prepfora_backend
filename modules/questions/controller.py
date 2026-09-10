@@ -3,6 +3,7 @@ from common.classes.return_type import ReturnType
 from common.exceptions.bad_request_exception import BadRequestException
 from common.logger import logger
 from modules.questions.service import get_questions_service, QuestionsService
+import uuid
 from modules.questions.schema import (
     ExamType,
     QuestionSingleResponse,
@@ -10,6 +11,9 @@ from modules.questions.schema import (
     CreateCustomQuestion,
     UpdateCustomQuestion,
     CustomQuestionReturn,
+    CreateExamination,
+    UpdateExamination,
+    ExaminationReturn,
 )
 
 router = APIRouter(
@@ -46,6 +50,19 @@ async def get_questions(
         )
     except Exception as e:
         logger.error("Failed to get questions: " + str(e))
+        raise BadRequestException(str(e))
+
+
+@router.get("/{id}", response_model=ReturnType[QuestionSingleResponse], status_code=200)
+async def get_question_by_id(
+    id: int | str = Path(..., description="Question ID"),
+    subject: str = Query("english", description="Subject name (e.g. english, mathematics, physics)"),
+    service: QuestionsService = Depends(get_questions_service),
+) -> ReturnType[QuestionSingleResponse]:
+    try:
+        return await service.get_question_by_id(id=id, subject=subject)
+    except Exception as e:
+        logger.error("Failed to get question by ID: " + str(e))
         raise BadRequestException(str(e))
 
 
@@ -115,3 +132,31 @@ async def delete_custom_question(
     except Exception as e:
         logger.error("Failed to delete custom question: " + str(e))
         raise BadRequestException(str(e))
+
+
+# EXAMINATION ENDPOINTS
+
+@router.post("/examination", response_model=ReturnType[ExaminationReturn], status_code=201)
+async def create_examination(
+    examination: CreateExamination,
+    service: QuestionsService = Depends(get_questions_service),
+) -> ReturnType[ExaminationReturn]:
+    try:
+        return await service.create_examination(examination)
+    except Exception as e:
+        logger.error("Failed to create examination: " + str(e))
+        raise BadRequestException(str(e))
+
+
+@router.put("/examination/{id}", response_model=ReturnType[ExaminationReturn], status_code=200)
+async def update_examination(
+    examination: UpdateExamination,
+    id: uuid.UUID = Path(..., description="Examination ID"),
+    service: QuestionsService = Depends(get_questions_service),
+) -> ReturnType[ExaminationReturn]:
+    try:
+        return await service.update_examination(id, examination)
+    except Exception as e:
+        logger.error("Failed to update examination: " + str(e))
+        raise BadRequestException(str(e))
+
