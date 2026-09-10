@@ -31,7 +31,7 @@ class User(Base):
     university: Mapped[str | None] = mapped_column(String(255), nullable=True)
     examinations: Mapped[list[Examination] | None] = mapped_column(ARRAY(SQLEnum(Examination)), nullable=True)
     current_expectation: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    current_examination_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    current_examination_date: Mapped[str | None] = mapped_column(String(255), nullable=True)
     prep_points: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
     best_score: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
 
