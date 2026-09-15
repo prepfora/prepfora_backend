@@ -134,5 +134,9 @@ class ExaminationReturn(BaseModel):
     failed_questions: list[str] | None = None
     exam_year: str
     exam_type: ExaminationType | str
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    isDeleted: bool = False
+
 
 
