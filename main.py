@@ -16,7 +16,9 @@ from modules.universities.controller import router as universities_controller
 from modules.questions.controller import router as questions_controller
 from modules.subjects.controller import router as subjects_controller
 from modules.user_auth.controller import router as auth_controller
+from modules.examination.controller import router as examination_controller
 import models  # Import all models to ensure SQLAlchemy mappers are registered
+
 
 ### Database initialization
 @asynccontextmanager
@@ -87,3 +89,4 @@ app.include_router(universities_controller)
 app.include_router(questions_controller)
 app.include_router(subjects_controller)
 app.include_router(auth_controller)
+app.include_router(examination_controller)
