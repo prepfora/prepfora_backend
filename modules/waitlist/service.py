@@ -181,15 +181,27 @@ class WaitlistService:
             raise InternalServerException(str(e))
     
     async def send_email_to_users(self, emails: list[str], message: str, subject: str) -> ReturnType[str]:
-        if (len(emails) < 1):
-            logger.info('NO EMAIL TO SEND TO')
-            raise BadRequestException("No email to send to")
+        if not emails:
+            logger.info("No emails provided, fetching all waitlist user emails")
+            stmt = select(Waitlist.email).where(Waitlist.isDeleted == False)
+            result = await self.db.execute(stmt)
+            emails = [e for e in result.scalars().all() if e]
+
+            if not emails:
+                logger.info("No emails found in waitlist")
+                raise BadRequestException("No emails found in waitlist to send to")
+
         payload = Send_Email_Payload(
             emails=emails,
             message=message,
             subject=subject
         )
         ee.emit("send_emails", payload)
+        return ReturnType[str](
+            success=True,
+            message=f"Email sent successfully to {len(emails)} recipient(s)",
+            data=f"Email sent successfully to {len(emails)} recipient(s)"
+        )
 
     async def get_total_waitlist_entries(self) -> ReturnType[int]:
         try:
@@ -207,24 +219,6 @@ class WaitlistService:
             logger.error("Error fetching total waitlist entries: " + str(e))
             raise InternalServerException(str(e))
 
-    
-
-    
-            
-        
-
-### WAITLIST DEPENDENCY
-def get_waitlist_service(
-    db: AsyncSession = Depends(get_db),
-) -> WaitlistService:
-    return WaitlistService(db)
-
-
-#### waitlist service
-
-    
-            
-        
 
 ### WAITLIST DEPENDENCY
 def get_waitlist_service(

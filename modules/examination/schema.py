@@ -55,3 +55,26 @@ class ExaminationReturn(BaseModel):
     created_at: datetime | None = None
     updated_at: datetime | None = None
     isDeleted: bool = False
+
+
+class CreateAnswer(BaseModel):
+    examination_id: uuid.UUID
+    user_id: uuid.UUID
+    question_id: int
+    picked_answer: str
+    correct_answer: str
+
+
+class AnswerReturn(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    examination_id: uuid.UUID
+    user_id: uuid.UUID
+    question_id: int
+    picked_answer: str | None = None
+    correct_answer: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    isDeleted: bool = False
+

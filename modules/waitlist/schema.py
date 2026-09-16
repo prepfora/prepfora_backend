@@ -30,9 +30,10 @@ class WaitListReturnType(CommonSchema):
 
 
 class SendWaitlistEmailPayload(BaseModel):
-    emails: list[str]
+    emails: list[str] = []
     message: str
     subject: str
+
 
     
 
