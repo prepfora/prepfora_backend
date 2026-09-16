@@ -7,11 +7,15 @@ from common.logger import logger
 from common.exceptions.bad_request_exception import BadRequestException
 import uuid
 from models.examination_model import Examination
+from models.answer_model import Answer
 from modules.examination.schema import (
     CreateExamination,
     UpdateExamination,
     ExaminationReturn,
+    CreateAnswer,
+    AnswerReturn,
 )
+
 
 
 class ExaminationService:
@@ -209,8 +213,88 @@ class ExaminationService:
             data=ExaminationReturn.model_validate(examination),
         )
 
+    async def create_answer(
+        self, body: CreateAnswer
+    ) -> ReturnType[AnswerReturn]:
+        if not self.db:
+            raise BadRequestException("Database session not initialized")
+
+        stmt = select(Examination).where(
+            Examination.id == body.examination_id, Examination.isDeleted == False
+        )
+        result = await self.db.execute(stmt)
+        examination = result.scalars().first()
+        if not examination:
+            logger.error(f"Examination not found with id={body.examination_id}")
+            raise BadRequestException(f"Examination with id {body.examination_id} not found")
+
+        answer = Answer(
+            examination_id=body.examination_id,
+            user_id=body.user_id,
+            question_id=body.question_id,
+            picked_answer=body.picked_answer,
+            correct_answer=body.correct_answer,
+        )
+        self.db.add(answer)
+
+        # Update examination stats
+        examination.total_questions_answered = (examination.total_questions_answered or 0) + 1
+
+        is_correct = (
+            body.picked_answer is not None
+            and body.correct_answer is not None
+            and body.picked_answer.strip().lower() == body.correct_answer.strip().lower()
+        )
+
+        question_id_str = str(body.question_id)
+
+        if is_correct:
+            current_correct = list(examination.correct_questions or [])
+            if question_id_str not in current_correct:
+                current_correct.append(question_id_str)
+            examination.correct_questions = current_correct
+        else:
+            examination.total_questions_failed = (examination.total_questions_failed or 0) + 1
+            current_failed = list(examination.failed_questions or [])
+            if question_id_str not in current_failed:
+                current_failed.append(question_id_str)
+            examination.failed_questions = current_failed
+
+        await self.db.commit()
+        await self.db.refresh(answer)
+        await self.db.refresh(examination)
+
+        logger.info(f"Answer created with id={answer.id} for examination_id={examination.id}")
+        return ReturnType[AnswerReturn](
+            success=True,
+            message="Answer created and examination updated successfully",
+            data=AnswerReturn.model_validate(answer),
+        )
+
+    async def get_examination_answers(
+        self, examination_id: uuid.UUID
+    ) -> ReturnType[list[AnswerReturn]]:
+        if not self.db:
+            raise BadRequestException("Database session not initialized")
+
+        stmt = (
+            select(Answer)
+            .where(Answer.examination_id == examination_id, Answer.isDeleted == False)
+            .order_by(Answer.created_at.asc())
+        )
+        result = await self.db.execute(stmt)
+        answers = list(result.scalars().all())
+        data = [AnswerReturn.model_validate(a) for a in answers]
+
+        return ReturnType[list[AnswerReturn]](
+            success=True,
+            message="Answers fetched successfully",
+            data=data,
+        )
+
 
 def get_examination_service(
     db: AsyncSession = Depends(get_db),
 ) -> ExaminationService:
     return ExaminationService(db=db)
+

@@ -9,6 +9,8 @@ from modules.examination.schema import (
     CreateExamination,
     UpdateExamination,
     ExaminationReturn,
+    CreateAnswer,
+    AnswerReturn,
 )
 
 router = APIRouter(
@@ -47,6 +49,30 @@ async def get_user_examinations(
         raise BadRequestException(str(e))
 
 
+@router.post("/answer", response_model=ReturnType[AnswerReturn], status_code=201)
+async def create_answer(
+    answer: CreateAnswer,
+    service: ExaminationService = Depends(get_examination_service),
+) -> ReturnType[AnswerReturn]:
+    try:
+        return await service.create_answer(answer)
+    except Exception as e:
+        logger.error("Failed to create answer: " + str(e))
+        raise BadRequestException(str(e))
+
+
+@router.get("/{id}/answers", response_model=ReturnType[list[AnswerReturn]], status_code=200)
+async def get_examination_answers(
+    id: uuid.UUID = Path(..., description="Examination ID"),
+    service: ExaminationService = Depends(get_examination_service),
+) -> ReturnType[list[AnswerReturn]]:
+    try:
+        return await service.get_examination_answers(id)
+    except Exception as e:
+        logger.error("Failed to get examination answers: " + str(e))
+        raise BadRequestException(str(e))
+
+
 @router.get("/{id}", response_model=ReturnType[ExaminationReturn], status_code=200)
 async def get_examination_by_id(
     id: uuid.UUID = Path(..., description="Examination ID"),
@@ -82,3 +108,4 @@ async def update_examination(
     except Exception as e:
         logger.error("Failed to update examination: " + str(e))
         raise BadRequestException(str(e))
+

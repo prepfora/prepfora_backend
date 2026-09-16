@@ -9,6 +9,8 @@ from models.activity_model import Activity
 from models.badge_model import Badge
 from models.user_badge_model import UserBadge
 from models.question_model import Question
+from models.examination_model import Examination
+from models.answer_model import Answer
 
 __all__ = [
     "Admin",
@@ -22,5 +24,8 @@ __all__ = [
     "Badge",
     "UserBadge",
     "Question",
+    "Examination",
+    "Answer",
 ]
+
 
