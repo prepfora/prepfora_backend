@@ -76,6 +76,7 @@ class QuestionsService:
     ) -> ReturnType[QuestionMultipleResponse]:
         try:
             logger.info(f"Fetching {limit} questions for subject={subject}")
+            newLimit = limit + 3
             params = {"subject": subject}
             if type:
                 params["type"] = type
@@ -83,7 +84,7 @@ class QuestionsService:
                 params["year"] = str(year)
 
             endpoint = (
-                f"{ALOC_BASE_URL}/q/{limit}"
+                f"{ALOC_BASE_URL}/q/{newLimit}"
                 if limit and limit > 1
                 else f"{ALOC_BASE_URL}/m"
             )
@@ -109,6 +110,8 @@ class QuestionsService:
                 elif isinstance(data_field, dict):
                     items = [QuestionItem(**data_field)]
 
+                if len(items) > limit:
+                    items = items[:limit]
                 multi_resp = QuestionMultipleResponse(
                     subject=res_data.get("subject", subject),
                     status=res_data.get("status", 200),
