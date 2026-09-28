@@ -214,9 +214,9 @@ class UserService:
                             data = resp.json()
                             if "email" in data:
                                 email = data["email"].strip().lower()
-                            if "given_name" in data:
+                            if "given_name" in data and not payload.first_name:
                                 first_name = data["given_name"]
-                            if "family_name" in data:
+                            if "family_name" in data and not payload.last_name:
                                 last_name = data["family_name"]
                 except Exception as g_err:
                     logger.error("Google token verification exception: " + str(g_err))

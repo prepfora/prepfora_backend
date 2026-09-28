@@ -39,12 +39,14 @@ class ValidateOtpRequest(BaseModel):
 class GoogleAuthRequest(BaseModel):
     id_token: str | None = None
     email: str | None = None
-    # first_name: str | None = None
-    # last_name: str | None = None
-    # state: str | None = None
-    # university: str | None = None
-    # examinations: list[Examination] | None = None
-    # current_expectation: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    state: str | None = None
+    university: str | None = None
+    examinations: list[Examination] | None = None
+    current_expectation: str | None = None
+    phone: str | None = None
+    current_examination_date: str | None = None
 
 
 class RefreshTokenRequest(BaseModel):
