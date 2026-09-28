@@ -76,7 +76,7 @@ class QuestionsService:
     ) -> ReturnType[QuestionMultipleResponse]:
         try:
             logger.info(f"Fetching {limit} questions for subject={subject}")
-            newLimit = limit + 3
+            newLimit = limit + 5
             params = {"subject": subject}
             if type:
                 params["type"] = type
@@ -122,6 +122,12 @@ class QuestionsService:
                     success=True,
                     message="Questions fetched successfully",
                     data=multi_resp,
+                    pagination=Pagination(
+                        total=len(items),
+                        page=1,
+                        per_page=limit,
+                        total_pages=1
+                    )
                 )
         except BadRequestException:
             raise
