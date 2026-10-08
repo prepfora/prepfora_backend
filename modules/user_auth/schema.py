@@ -24,6 +24,7 @@ class UpdateUser(BaseModel):
     current_expectation: str | None = None
     phone: str | None = None
     current_examination_date: str | None = None
+    profile_picture: str | None = None
 
 
 
@@ -47,6 +48,8 @@ class GoogleAuthRequest(BaseModel):
     current_expectation: str | None = None
     phone: str | None = None
     current_examination_date: str | None = None
+    profile_picture: str | None = None
+
 
 
 class RefreshTokenRequest(BaseModel):
@@ -66,6 +69,8 @@ class UserResponse(BaseModel):
     current_expectation: str | None = None
     prep_points: int | None = 0
     best_score: int | None = 0
+    profile_picture: str | None = None
+    
 
     class Config:
         from_attributes = True

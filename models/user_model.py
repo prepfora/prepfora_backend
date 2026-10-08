@@ -34,6 +34,7 @@ class User(Base):
     current_examination_date: Mapped[str | None] = mapped_column(String(255), nullable=True)
     prep_points: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
     best_score: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
+    profile_picture: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # 2. Relationship
     activities: Mapped[list["Activity"]] = relationship("Activity", back_populates="user", cascade="all, delete-orphan")
