@@ -241,6 +241,7 @@ class UserService:
                     current_expectation=payload.current_expectation or "",
                     phone=payload.phone or "",
                     current_examination_date=payload.current_examination_date or None,
+                    
                     prep_points=0,
                     best_score=0,
                 )
@@ -346,6 +347,8 @@ class UserService:
                 user.phone = payload.phone
             if payload.current_examination_date is not None:
                 user.current_examination_date = payload.current_examination_date
+            if payload.profile_picture is not None:
+                user.profile_picture = payload.profile_picture
 
             await self.db.commit()
             await self.db.refresh(user)
