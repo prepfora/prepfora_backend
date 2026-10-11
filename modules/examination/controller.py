@@ -10,6 +10,7 @@ from modules.examination.schema import (
     UpdateExamination,
     ExaminationReturn,
     CreateAnswer,
+    SubmitAnswer,
     AnswerReturn,
 )
 
@@ -58,6 +59,28 @@ async def create_answer(
         return await service.create_answer(answer)
     except Exception as e:
         logger.error("Failed to create answer: " + str(e))
+        raise BadRequestException(str(e))
+
+
+@router.post("/{id}/answer", response_model=ReturnType[AnswerReturn], status_code=201)
+@router.post("/{id}/answers", response_model=ReturnType[AnswerReturn], status_code=201)
+async def answer_question(
+    answer: SubmitAnswer,
+    id: uuid.UUID = Path(..., description="Examination ID"),
+    service: ExaminationService = Depends(get_examination_service),
+) -> ReturnType[AnswerReturn]:
+    try:
+        return await service.create_answer(
+            CreateAnswer(
+                examination_id=id,
+                question_id=answer.question_id,
+                picked_answer=answer.picked_answer,
+                correct_answer=answer.correct_answer,
+                user_id=answer.user_id,
+            )
+        )
+    except Exception as e:
+        logger.error("Failed to answer question: " + str(e))
         raise BadRequestException(str(e))
 
 

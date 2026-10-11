@@ -41,5 +41,18 @@ class Examination(Base):
     exam_type: Mapped[str] = mapped_column(String(50), nullable=False)
 
     # Relationships
-    answers: Mapped[list["Answer"]] = relationship("Answer", back_populates="examination", cascade="all, delete-orphan")
+    answers: Mapped[list["Answer"]] = relationship(
+        "Answer",
+        back_populates="examination",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+
+    @property
+    def question_ids(self) -> list[int] | None:
+        return self.questions_ids
+
+    @question_ids.setter
+    def question_ids(self, val: list[int] | None) -> None:
+        self.questions_ids = val
 
