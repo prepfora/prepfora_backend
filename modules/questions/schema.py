@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, AliasChoices
 from typing import Any, Literal
 from datetime import datetime
 
@@ -15,7 +15,10 @@ class QuestionOption(BaseModel):
 
 
 class QuestionItem(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
+
     id: int | str
+    subject: str | None = None
     question: str
     option: QuestionOption | dict[str, Any] | None = None
     section: str | None = ""
@@ -25,7 +28,16 @@ class QuestionItem(BaseModel):
     examtype: ExamType | str | None = ""
     examyear: str | None = ""
     hasPassage: int | bool | None = None
+    has_passage: bool | None = None
     category: str | None = None
+
+
+class QuestionsByIdsRequest(BaseModel):
+    ids: list[int] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("ids", "question_ids", "questions_ids"),
+        description="Array of question IDs to fetch",
+    )
 
 
 class QuestionSingleResponse(BaseModel):
@@ -41,6 +53,7 @@ class QuestionMultipleResponse(BaseModel):
 
 
 class CreateCustomQuestion(BaseModel):
+    subject: str | None = None
     question: str
     option: QuestionOption | dict[str, Any] | None = None
     section: str | None = None
@@ -54,6 +67,7 @@ class CreateCustomQuestion(BaseModel):
 
 
 class UpdateCustomQuestion(BaseModel):
+    subject: str | None = None
     question: str | None = None
     option: QuestionOption | dict[str, Any] | None = None
     section: str | None = None
@@ -70,6 +84,7 @@ class CustomQuestionReturn(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    subject: str | None = None
     question: str
     option: QuestionOption | dict[str, Any] | None = None
     section: str | None = None
