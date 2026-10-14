@@ -16,6 +16,7 @@ from modules.universities.controller import router as universities_controller
 from modules.questions.controller import router as questions_controller
 from modules.subjects.controller import router as subjects_controller
 from modules.user_auth.controller import router as auth_controller
+from modules.admin_auth.controller import router as admin_auth_controller, admin_router
 from modules.examination.controller import router as examination_controller
 from modules.upload.controller import router as upload_controller
 from modules.notifications.controller import router as notification_controller
@@ -92,6 +93,8 @@ app.include_router(universities_controller)
 app.include_router(questions_controller)
 app.include_router(subjects_controller)
 app.include_router(auth_controller)
+app.include_router(admin_auth_controller)
+app.include_router(admin_router)
 app.include_router(examination_controller)
 app.include_router(upload_controller)
 app.include_router(notification_controller)
