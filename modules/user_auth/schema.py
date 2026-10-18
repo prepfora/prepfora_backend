@@ -12,7 +12,8 @@ class Examination(str, Enum):
 
 class CreateUser(BaseModel):
     email: str
- 
+    affiliate_code: str | None = None
+    referral_code: str | None = None
 
 
 class UpdateUser(BaseModel):
@@ -25,6 +26,7 @@ class UpdateUser(BaseModel):
     phone: str | None = None
     current_examination_date: str | None = None
     profile_picture: str | None = None
+    affiliate_code: str | None = None
 
 
 
@@ -49,6 +51,8 @@ class GoogleAuthRequest(BaseModel):
     phone: str | None = None
     current_examination_date: str | None = None
     profile_picture: str | None = None
+    affiliate_code: str | None = None
+    referral_code: str | None = None
 
 
 
@@ -70,7 +74,8 @@ class UserResponse(BaseModel):
     prep_points: int | None = 0
     best_score: int | None = 0
     profile_picture: str | None = None
-    
+    referral_code: str | None = None
+
 
     class Config:
         from_attributes = True

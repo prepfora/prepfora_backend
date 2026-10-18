@@ -12,6 +12,8 @@ from models.question_model import Question
 from models.examination_model import Examination
 from models.answer_model import Answer
 from models.notification_model import Notification
+from models.invite_model import Invite
+from models.affiliate_model import Affiliate
 
 __all__ = [
     "Admin",
@@ -28,6 +30,8 @@ __all__ = [
     "Examination",
     "Answer",
     "Notification",
+    "Invite",
+    "Affiliate",
 ]
 
 
