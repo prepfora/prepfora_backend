@@ -21,6 +21,7 @@ from modules.examination.controller import router as examination_controller
 from modules.upload.controller import router as upload_controller
 from modules.notifications.controller import router as notification_controller
 from modules.analytics.controller import router as analytics_controller
+from modules.affiliate.controller import router as affiliate_controller
 import models  # Import all models to ensure SQLAlchemy mappers are registered
 
 
@@ -99,3 +100,4 @@ app.include_router(examination_controller)
 app.include_router(upload_controller)
 app.include_router(notification_controller)
 app.include_router(analytics_controller)
+app.include_router(affiliate_controller)

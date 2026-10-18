@@ -35,6 +35,7 @@ class User(Base):
     prep_points: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
     best_score: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
     profile_picture: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    referral_code: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # 2. Relationship
     activities: Mapped[list["Activity"]] = relationship("Activity", back_populates="user", cascade="all, delete-orphan")

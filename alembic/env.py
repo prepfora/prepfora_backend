@@ -23,6 +23,8 @@ import models.badge_model
 import models.user_badge_model
 import models.question_model
 import models.examination_model
+import models.invite_model
+import models.affiliate_model
 
 
 # this is the Alembic Config object, which provides

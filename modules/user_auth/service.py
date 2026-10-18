@@ -18,6 +18,7 @@ from fastapi import Depends
 
 from models.user_model import User
 from models.otp_model import Otp
+from models.affiliate_model import Affiliate
 from modules.user_auth.schema import (
     CreateUser,
     UpdateUser,
@@ -38,6 +39,35 @@ class UserService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def _validate_affiliate_code(self, raw_code: str | None) -> str | None:
+        """Validates an affiliate referral code against the Affiliate table."""
+        if not raw_code or not raw_code.strip():
+            return None
+
+        code_str = raw_code.strip()
+        stmt = select(Affiliate).where(
+            Affiliate.code == code_str,
+            Affiliate.isDeleted == False,
+        )
+        result = await self.db.execute(stmt)
+        affiliate = result.scalars().first()
+
+        if affiliate is None and code_str != code_str.upper():
+            stmt_upper = select(Affiliate).where(
+                Affiliate.code == code_str.upper(),
+                Affiliate.isDeleted == False,
+            )
+            res_upper = await self.db.execute(stmt_upper)
+            affiliate = res_upper.scalars().first()
+
+        if affiliate is None:
+            raise BadRequestException("Invalid affiliate code")
+
+        if affiliate.isSuspended:
+            raise BadRequestException("This affiliate code is currently suspended or inactive")
+
+        return affiliate.code
+
     async def register_user(self, payload: CreateUser) -> ReturnType[UserResponse]:
         try:
             email = payload.email.strip().lower()
@@ -49,11 +79,14 @@ class UserService:
             if existing_user is not None:
                 raise BadRequestException("User with this email already exists")
 
+            # Validate affiliate / referral code if provided
+            raw_affiliate_code = payload.affiliate_code
+            validated_referral_code = await self._validate_affiliate_code(raw_affiliate_code)
+
             # Create User
             user = User(
-              
                 email=email,
-                
+                referral_code=validated_referral_code,
             )
             self.db.add(user)
             await self.db.commit()
@@ -230,6 +263,9 @@ class UserService:
             user = result.scalars().first()
 
             if user is None:
+                raw_affiliate_code = payload.affiliate_code or payload.referral_code
+                validated_referral_code = await self._validate_affiliate_code(raw_affiliate_code)
+
                 # Create user
                 user = User(
                     first_name=first_name,
@@ -241,7 +277,7 @@ class UserService:
                     current_expectation=payload.current_expectation or "",
                     phone=payload.phone or "",
                     current_examination_date=payload.current_examination_date or None,
-                    
+                    referral_code=validated_referral_code,
                     prep_points=0,
                     best_score=0,
                 )
@@ -349,6 +385,9 @@ class UserService:
                 user.current_examination_date = payload.current_examination_date
             if payload.profile_picture is not None:
                 user.profile_picture = payload.profile_picture
+            if payload.affiliate_code is not None or payload.referral_code is not None:
+                raw_affiliate_code = payload.affiliate_code or payload.referral_code
+                user.referral_code = await self._validate_affiliate_code(raw_affiliate_code)
 
             await self.db.commit()
             await self.db.refresh(user)
