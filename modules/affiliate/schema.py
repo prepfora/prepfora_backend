@@ -33,7 +33,6 @@ class AffiliateRegisterRequest(BaseModel):
 
 class AffiliateLoginRequest(BaseModel):
     email: EmailStr
-    otp: str | None = Field(default=None, min_length=6, max_length=6, description="Optional 6-digit OTP code")
 
 
 class AffiliateValidateOtpRequest(BaseModel):
