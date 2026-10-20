@@ -68,7 +68,6 @@ router = APIRouter(
 
 
 # 1. Admin-only: Send invite to affiliate
-@router.post("/invite", response_model=ReturnType[InviteResponse], status_code=201)
 @router.post("/admin/invite", response_model=ReturnType[InviteResponse], status_code=201)
 async def send_invite(
     payload: SendInviteRequest,
@@ -89,7 +88,6 @@ async def send_invite(
 
 
 # 5. Affiliate Registration (verifies 6-digit invite code & deactivates invite)
-@router.post("/register", response_model=ReturnType[AffiliateAuthResponse], status_code=201)
 @router.post("/auth/register", response_model=ReturnType[AffiliateAuthResponse], status_code=201)
 async def register_affiliate(
     payload: AffiliateRegisterRequest,
@@ -109,7 +107,6 @@ async def register_affiliate(
 
 
 # 2a. Affiliate Login (sends 6-digit OTP to email, or verifies if OTP is provided)
-@router.post("/login", response_model=ReturnType[MessageResponse | AffiliateAuthResponse], status_code=200)
 @router.post("/auth/login", response_model=ReturnType[MessageResponse | AffiliateAuthResponse], status_code=200)
 async def login_affiliate(
     payload: AffiliateLoginRequest,
@@ -129,9 +126,6 @@ async def login_affiliate(
 
 
 # 2b. Verify Affiliate Login OTP (returns access_token, refresh_token, and affiliate details)
-@router.post("/validate-otp", response_model=ReturnType[AffiliateAuthResponse], status_code=200)
-@router.post("/verify-otp", response_model=ReturnType[AffiliateAuthResponse], status_code=200)
-@router.post("/auth/validate-otp", response_model=ReturnType[AffiliateAuthResponse], status_code=200)
 @router.post("/auth/verify-otp", response_model=ReturnType[AffiliateAuthResponse], status_code=200)
 async def validate_affiliate_otp(
     payload: AffiliateValidateOtpRequest,
@@ -150,7 +144,6 @@ async def validate_affiliate_otp(
 
 
 # 3. Refresh Affiliate Token
-@router.post("/refresh-token", response_model=ReturnType[AffiliateTokenData], status_code=200)
 @router.post("/auth/refresh-token", response_model=ReturnType[AffiliateTokenData], status_code=200)
 async def refresh_affiliate_token(
     payload: AffiliateRefreshTokenRequest,
@@ -167,7 +160,6 @@ async def refresh_affiliate_token(
 
 
 # Current authenticated affiliate details
-@router.get("/me", response_model=ReturnType[AffiliateResponse], status_code=200)
 @router.get("/auth/me", response_model=ReturnType[AffiliateResponse], status_code=200)
 async def get_current_affiliate_details(
     auth_data: dict = Depends(verify_access_token),
@@ -217,7 +209,6 @@ async def list_all_invites(
 
 # 4. Get Affiliate Details by ID
 @router.get("/details/{id}", response_model=ReturnType[AffiliateResponse], status_code=200)
-@router.get("/{id}", response_model=ReturnType[AffiliateResponse], status_code=200)
 async def get_affiliate_details_by_id(
     id: UUID,
     service: AffiliateService = Depends(get_affiliate_service),

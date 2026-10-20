@@ -392,12 +392,6 @@ class AffiliateService:
             if affiliate.isSuspended:
                 raise ForbiddenException("Affiliate account is suspended. Please contact support.")
 
-            # If OTP code was supplied directly in the login request, validate it immediately
-            if payload.otp:
-                return await self.validate_otp(
-                    AffiliateValidateOtpRequest(email=email, otp=payload.otp)
-                )
-
             # Otherwise, generate a 6-digit OTP code and send to email
             otp_code = f"{random.randint(100000, 999999)}"
             otp_entry = Otp(
