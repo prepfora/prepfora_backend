@@ -268,7 +268,7 @@ class AdminAuthService:
             otp_entry = Otp(
                 email=email,
                 otp=otp_code,
-                expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
+                expires_at=datetime.now(timezone.utc) + timedelta(minutes=30),
                 is_used=False,
             )
             self.db.add(otp_entry)
