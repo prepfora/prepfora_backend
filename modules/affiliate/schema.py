@@ -28,7 +28,6 @@ class AffiliateRegisterRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=255)
     email: EmailStr
     invite_code: str = Field(..., min_length=6, max_length=6, description="6-digit unique invite code")
-    code: str | None = Field(default=None, max_length=255, description="Optional custom affiliate referral code")
 
 
 class AffiliateLoginRequest(BaseModel):
