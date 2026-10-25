@@ -28,6 +28,7 @@ class AffiliateRegisterRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=255)
     email: EmailStr
     invite_code: str = Field(..., min_length=6, max_length=6, description="6-digit unique invite code")
+    code: str | None = Field(default=None, description="Optional custom referral code")
 
 
 class AffiliateLoginRequest(BaseModel):
@@ -53,7 +54,7 @@ class AffiliateResponse(BaseModel):
     id: UUID
     name: str
     email: str
-    code: str
+    code: str | None = None
     isSuspended: bool
     created_at: datetime | None = None
     updated_at: datetime | None = None
