@@ -1,5 +1,5 @@
 from uuid import UUID
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +12,7 @@ from common.logger import logger
 from common.services.auth import verify_access_token
 from models.admin_model import Admin
 from modules.affiliate.schema import (
+    AffiliateAnalyticsResponse,
     AffiliateAuthResponse,
     AffiliateLoginRequest,
     AffiliateRefreshTokenRequest,
@@ -21,6 +22,7 @@ from modules.affiliate.schema import (
     AffiliateValidateOtpRequest,
     InviteResponse,
     MessageResponse,
+    ReferredUserResponse,
     SendInviteRequest,
 )
 from modules.affiliate.service import AffiliateService, get_affiliate_service
@@ -220,4 +222,65 @@ async def get_affiliate_details_by_id(
         raise
     except Exception as e:
         logger.error(f"Failed to fetch affiliate details by ID: {e}")
+        raise BadRequestException(str(e))
+
+
+# 5. Affiliate Analytics: Total referred users count & timeframe breakdown
+@router.get("/analytics", response_model=ReturnType[AffiliateAnalyticsResponse], status_code=200)
+@router.get("/analytics/referrals", response_model=ReturnType[AffiliateAnalyticsResponse], status_code=200)
+async def get_affiliate_referral_analytics(
+    affiliate_id: UUID | None = Query(
+        None,
+        description="Optional affiliate ID (admin only to view a specific affiliate; authenticated affiliates view their own stats automatically)",
+    ),
+    auth_data: dict = Depends(verify_access_token),
+    service: AffiliateService = Depends(get_affiliate_service),
+) -> ReturnType[AffiliateAnalyticsResponse]:
+    """
+    Analytics endpoint for affiliates to get the total number of users that they have referred.
+    Returns:
+      - total_referrals (and total_referred): total number of users registered using the affiliate's code
+      - referrals_today, referrals_this_week, referrals_this_month
+      - affiliate details (id, name, code)
+    """
+    try:
+        return await service.get_affiliate_referral_analytics(auth_data=auth_data, affiliate_id=affiliate_id)
+    except APIException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to fetch affiliate referral analytics: {e}")
+        raise BadRequestException(str(e))
+
+
+# 6. Paginated list of users referred by the affiliate
+@router.get("/referrals", response_model=ReturnType[list[ReferredUserResponse]], status_code=200)
+@router.get("/analytics/referrals/users", response_model=ReturnType[list[ReferredUserResponse]], status_code=200)
+@router.get("/referred-users", response_model=ReturnType[list[ReferredUserResponse]], status_code=200)
+async def get_affiliate_referred_users(
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(20, ge=1, le=100, description="Items per page"),
+    search: str | None = Query(None, description="Optional search by name, email, or phone"),
+    affiliate_id: UUID | None = Query(
+        None,
+        description="Optional affiliate ID (admin only to view a specific affiliate; authenticated affiliates view their own users automatically)",
+    ),
+    auth_data: dict = Depends(verify_access_token),
+    service: AffiliateService = Depends(get_affiliate_service),
+) -> ReturnType[list[ReferredUserResponse]]:
+    """
+    Retrieves a paginated list of users referred by the affiliate.
+    Includes pagination metadata (total, page, per_page).
+    """
+    try:
+        return await service.get_referred_users(
+            auth_data=auth_data,
+            affiliate_id=affiliate_id,
+            page=page,
+            limit=limit,
+            search=search,
+        )
+    except APIException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to fetch affiliate referred users: {e}")
         raise BadRequestException(str(e))

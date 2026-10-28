@@ -69,3 +69,34 @@ class AffiliateAuthResponse(BaseModel):
 
 class MessageResponse(BaseModel):
     message: str
+
+
+class AffiliateAnalyticsResponse(BaseModel):
+    total_referrals: int = Field(..., description="Total number of users referred by this affiliate")
+    total_referred: int = Field(..., description="Alias for total_referrals")
+    referrals_today: int = Field(0, description="Users referred in the last 24 hours")
+    referrals_this_week: int = Field(0, description="Users referred in the last 7 days")
+    referrals_this_month: int = Field(0, description="Users referred in the last 30 days")
+    affiliate_id: UUID = Field(..., description="Affiliate ID")
+    affiliate_name: str = Field(..., description="Affiliate name")
+    affiliate_code: str = Field(..., description="Affiliate referral code")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ReferredUserResponse(BaseModel):
+    id: UUID
+    first_name: str | None = None
+    last_name: str | None = None
+    email: str
+    phone: str | None = None
+    state: str | None = None
+    university: str | None = None
+    examinations: list[str] | None = None
+    prep_points: int | None = 0
+    best_score: int | None = 0
+    profile_picture: str | None = None
+    referral_code: str | None = None
+    created_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)

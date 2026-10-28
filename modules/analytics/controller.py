@@ -1,5 +1,5 @@
 from uuid import UUID
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,6 +8,8 @@ from common.database import get_db
 from common.exceptions.forbidden_exception import ForbiddenException
 from common.services.auth import verify_access_token
 from models.admin_model import Admin
+from modules.affiliate.schema import AffiliateAnalyticsResponse, ReferredUserResponse
+from modules.affiliate.service import AffiliateService, get_affiliate_service
 from modules.analytics.schema import AdminAnalyticsResponse
 from modules.analytics.service import AnalyticsService, get_analytics_service
 
@@ -62,3 +64,44 @@ async def get_analytics_dashboard(
     service: AnalyticsService = Depends(get_analytics_service),
 ) -> ReturnType[AdminAnalyticsResponse]:
     return await service.get_dashboard_metrics()
+
+
+@router.get("/affiliate", response_model=ReturnType[AffiliateAnalyticsResponse], status_code=200)
+@router.get("/affiliate/referrals", response_model=ReturnType[AffiliateAnalyticsResponse], status_code=200)
+async def get_affiliate_analytics_in_analytics(
+    affiliate_id: UUID | None = Query(
+        None,
+        description="Optional affiliate ID (admin only to view a specific affiliate; authenticated affiliates view their own stats automatically)",
+    ),
+    auth_data: dict = Depends(verify_access_token),
+    service: AffiliateService = Depends(get_affiliate_service),
+) -> ReturnType[AffiliateAnalyticsResponse]:
+    """
+    Analytics endpoint for affiliates to get the total number of users that they have referred.
+    """
+    return await service.get_affiliate_referral_analytics(auth_data=auth_data, affiliate_id=affiliate_id)
+
+
+@router.get("/affiliate/users", response_model=ReturnType[list[ReferredUserResponse]], status_code=200)
+@router.get("/affiliate/referrals/users", response_model=ReturnType[list[ReferredUserResponse]], status_code=200)
+async def get_affiliate_referred_users_in_analytics(
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(20, ge=1, le=100, description="Items per page"),
+    search: str | None = Query(None, description="Optional search by name, email, or phone"),
+    affiliate_id: UUID | None = Query(
+        None,
+        description="Optional affiliate ID (admin only to view a specific affiliate; authenticated affiliates view their own users automatically)",
+    ),
+    auth_data: dict = Depends(verify_access_token),
+    service: AffiliateService = Depends(get_affiliate_service),
+) -> ReturnType[list[ReferredUserResponse]]:
+    """
+    Retrieves a paginated list of users referred by the affiliate.
+    """
+    return await service.get_referred_users(
+        auth_data=auth_data,
+        affiliate_id=affiliate_id,
+        page=page,
+        limit=limit,
+        search=search,
+    )
