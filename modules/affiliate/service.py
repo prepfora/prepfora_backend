@@ -5,10 +5,10 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from common.classes.return_type import ReturnType
+from common.classes.return_type import Pagination, ReturnType
 from common.database import get_db
 from common.exceptions.bad_request_exception import BadRequestException
 from common.exceptions.forbidden_exception import ForbiddenException
@@ -18,10 +18,13 @@ from common.exceptions.unauthorized_exception import UnauthorizedException
 from common.logger import logger
 from common.services.auth import create_access_token, decode_token
 from common.services.emaill_service import ResendPayload, send_email
+from models.admin_model import Admin
 from models.affiliate_model import Affiliate
 from models.invite_model import Invite
 from models.otp_model import Otp
+from models.user_model import User
 from modules.affiliate.schema import (
+    AffiliateAnalyticsResponse,
     AffiliateAuthResponse,
     AffiliateLoginRequest,
     AffiliateRefreshTokenRequest,
@@ -31,6 +34,7 @@ from modules.affiliate.schema import (
     AffiliateValidateOtpRequest,
     InviteResponse,
     MessageResponse,
+    ReferredUserResponse,
     SendInviteRequest,
 )
 
@@ -647,6 +651,255 @@ class AffiliateService:
             )
         except Exception as e:
             logger.error(f"Error in get_all_invites: {e}")
+            raise InternalServerException(str(e))
+
+    async def _resolve_affiliate(
+        self,
+        auth_data: dict,
+        affiliate_id: uuid.UUID | None = None,
+    ) -> Affiliate:
+        """
+        Resolves the target affiliate record.
+        - If the caller has admin privileges and affiliate_id is provided, returns that affiliate.
+        - If the caller is an admin and affiliate_id is not provided, raises BadRequestException.
+        - If the caller is an affiliate, verifies they are accessing their own record and not suspended.
+        """
+        role = str(auth_data.get("role", "")).lower()
+        is_admin = (role in ["admin", "superadmin", "super admin"]) or (auth_data.get("is_admin") is True)
+
+        sub = auth_data.get("sub")
+        if not is_admin and sub:
+            try:
+                admin_uuid = uuid.UUID(str(sub))
+                admin_stmt = select(Admin).where(
+                    Admin.id == admin_uuid,
+                    Admin.is_active == True,
+                    Admin.isDeleted == False,
+                )
+                admin_res = await self.db.execute(admin_stmt)
+                if admin_res.scalar_one_or_none() is not None:
+                    is_admin = True
+            except (ValueError, TypeError):
+                pass
+
+        if is_admin:
+            if affiliate_id is None:
+                raise BadRequestException("affiliate_id parameter is required for admin requests")
+            target_uuid = (
+                affiliate_id if isinstance(affiliate_id, uuid.UUID) else uuid.UUID(str(affiliate_id))
+            )
+            stmt = select(Affiliate).where(
+                Affiliate.id == target_uuid,
+                Affiliate.isDeleted == False,
+            )
+            res = await self.db.execute(stmt)
+            affiliate = res.scalars().first()
+            if affiliate is None:
+                raise NotFoundException("Affiliate not found")
+            return affiliate
+
+        # Affiliate accessing their own stats
+        if not sub:
+            raise UnauthorizedException("Invalid authentication credentials")
+
+        try:
+            current_affiliate_uuid = uuid.UUID(str(sub))
+        except (ValueError, TypeError):
+            raise UnauthorizedException("Invalid affiliate credentials")
+
+        if affiliate_id is not None:
+            target_uuid = (
+                affiliate_id if isinstance(affiliate_id, uuid.UUID) else uuid.UUID(str(affiliate_id))
+            )
+            if target_uuid != current_affiliate_uuid:
+                raise ForbiddenException("Access denied. You can only view your own affiliate data.")
+
+        stmt = select(Affiliate).where(
+            Affiliate.id == current_affiliate_uuid,
+            Affiliate.isDeleted == False,
+        )
+        res = await self.db.execute(stmt)
+        affiliate = res.scalars().first()
+
+        if affiliate is None:
+            raise NotFoundException("Affiliate account not found")
+
+        if affiliate.isSuspended:
+            raise ForbiddenException("Affiliate account is suspended. Please contact support.")
+
+        return affiliate
+
+    async def get_affiliate_referral_analytics(
+        self,
+        auth_data: dict,
+        affiliate_id: uuid.UUID | None = None,
+    ) -> ReturnType[AffiliateAnalyticsResponse]:
+        """
+        Computes referral analytics for an affiliate:
+        - Total referred users count
+        - Breakdown: users referred today, this week, and this month
+        - Affiliate details (id, name, code)
+        """
+        try:
+            affiliate = await self._resolve_affiliate(auth_data, affiliate_id)
+
+            if not affiliate.code:
+                data = AffiliateAnalyticsResponse(
+                    total_referrals=0,
+                    total_referred=0,
+                    referrals_today=0,
+                    referrals_this_week=0,
+                    referrals_this_month=0,
+                    affiliate_id=affiliate.id,
+                    affiliate_name=affiliate.name,
+                    affiliate_code="",
+                )
+                return ReturnType[AffiliateAnalyticsResponse](
+                    success=True,
+                    message="Affiliate referral analytics retrieved successfully",
+                    data=data,
+                )
+
+            now = datetime.now(timezone.utc)
+            day_ago = now - timedelta(days=1)
+            week_ago = now - timedelta(days=7)
+            month_ago = now - timedelta(days=30)
+
+            clean_code = affiliate.code.strip().lower()
+            base_filters = [
+                User.isDeleted == False,
+                func.lower(User.referral_code) == clean_code,
+            ]
+
+            total_stmt = select(func.count()).select_from(User).where(*base_filters)
+            total_referrals = (await self.db.execute(total_stmt)).scalar_one()
+
+            today_stmt = select(func.count()).select_from(User).where(*base_filters, User.created_at >= day_ago)
+            referrals_today = (await self.db.execute(today_stmt)).scalar_one()
+
+            week_stmt = select(func.count()).select_from(User).where(*base_filters, User.created_at >= week_ago)
+            referrals_this_week = (await self.db.execute(week_stmt)).scalar_one()
+
+            month_stmt = select(func.count()).select_from(User).where(*base_filters, User.created_at >= month_ago)
+            referrals_this_month = (await self.db.execute(month_stmt)).scalar_one()
+
+            data = AffiliateAnalyticsResponse(
+                total_referrals=total_referrals,
+                total_referred=total_referrals,
+                referrals_today=referrals_today,
+                referrals_this_week=referrals_this_week,
+                referrals_this_month=referrals_this_month,
+                affiliate_id=affiliate.id,
+                affiliate_name=affiliate.name,
+                affiliate_code=affiliate.code,
+            )
+
+            return ReturnType[AffiliateAnalyticsResponse](
+                success=True,
+                message="Affiliate referral analytics retrieved successfully",
+                data=data,
+            )
+        except (BadRequestException, NotFoundException, UnauthorizedException, ForbiddenException):
+            raise
+        except Exception as e:
+            logger.error(f"Error in get_affiliate_referral_analytics: {e}")
+            raise InternalServerException(str(e))
+
+    async def get_referred_users(
+        self,
+        auth_data: dict,
+        affiliate_id: uuid.UUID | None = None,
+        page: int = 1,
+        limit: int = 20,
+        search: str | None = None,
+    ) -> ReturnType[list[ReferredUserResponse]]:
+        """
+        Retrieves a paginated list of users referred by the affiliate.
+        Supports optional search across email, name, and phone.
+        """
+        try:
+            if page < 1:
+                raise BadRequestException("Page must be greater than 0")
+            if limit < 1:
+                raise BadRequestException("Limit must be greater than 0")
+
+            affiliate = await self._resolve_affiliate(auth_data, affiliate_id)
+
+            if not affiliate.code:
+                return ReturnType[list[ReferredUserResponse]](
+                    success=True,
+                    message="Referred users retrieved successfully",
+                    data=[],
+                    pagination=Pagination(
+                        total=0,
+                        page=page,
+                        per_page=limit,
+                    ),
+                )
+
+            clean_code = affiliate.code.strip().lower()
+            filters = [
+                User.isDeleted == False,
+                func.lower(User.referral_code) == clean_code,
+            ]
+
+            if search and search.strip():
+                search_term = f"%{search.strip().lower()}%"
+                filters.append(
+                    or_(
+                        func.lower(User.email).like(search_term),
+                        func.lower(User.first_name).like(search_term),
+                        func.lower(User.last_name).like(search_term),
+                        func.lower(User.phone).like(search_term),
+                    )
+                )
+
+            count_stmt = select(func.count()).select_from(User).where(*filters)
+            total = (await self.db.execute(count_stmt)).scalar_one()
+
+            users_stmt = (
+                select(User)
+                .where(*filters)
+                .order_by(User.created_at.desc())
+                .offset((page - 1) * limit)
+                .limit(limit)
+            )
+            users_res = await self.db.execute(users_stmt)
+            users = users_res.scalars().all()
+
+            user_list = [
+                ReferredUserResponse(
+                    id=u.id,
+                    first_name=u.first_name,
+                    last_name=u.last_name,
+                    email=u.email,
+                    phone=u.phone,
+                    state=u.state,
+                    university=u.university,
+                    examinations=[e.value if hasattr(e, "value") else str(e) for e in u.examinations] if u.examinations else None,
+                    prep_points=u.prep_points or 0,
+                    best_score=u.best_score or 0,
+                    profile_picture=u.profile_picture,
+                    referral_code=u.referral_code,
+                    created_at=u.created_at,
+                )
+                for u in users
+            ]
+
+            return ReturnType[list[ReferredUserResponse]](
+                success=True,
+                message="Referred users retrieved successfully",
+                data=user_list,
+                pagination=Pagination(
+                    total=total,
+                    page=page,
+                    per_page=limit,
+                ),
+            )
+        except (BadRequestException, NotFoundException, UnauthorizedException, ForbiddenException):
+            raise
+        except Exception as e:
+            logger.error(f"Error in get_referred_users: {e}")
             raise InternalServerException(str(e))
 
 
