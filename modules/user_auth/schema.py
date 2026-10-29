@@ -3,6 +3,7 @@ from enum import Enum
 import uuid
 from datetime import datetime
 
+
 class Examination(str, Enum):
     waec = "waec"
     neco = "neco"
