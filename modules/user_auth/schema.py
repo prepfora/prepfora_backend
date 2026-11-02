@@ -28,6 +28,7 @@ class UpdateUser(BaseModel):
     current_examination_date: str | None = None
     profile_picture: str | None = None
     affiliate_code: str | None = None
+    referral_code: str | None = None
 
 
 
