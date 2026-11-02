@@ -385,9 +385,9 @@ class UserService:
                 user.current_examination_date = payload.current_examination_date
             if payload.profile_picture is not None:
                 user.profile_picture = payload.profile_picture
-            if payload.affiliate_code is not None or payload.referral_code is not None:
-                raw_affiliate_code = payload.affiliate_code or payload.referral_code
-                user.referral_code = await self._validate_affiliate_code(raw_affiliate_code)
+            # if payload.affiliate_code is not None or payload.referral_code is not None:
+            #     raw_affiliate_code = payload.affiliate_code or payload.referral_code
+            #     user.referral_code = await self._validate_affiliate_code(raw_affiliate_code)
 
             await self.db.commit()
             await self.db.refresh(user)
