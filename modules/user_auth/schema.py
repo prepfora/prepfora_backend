@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, AliasChoices
 from enum import Enum
 import uuid
 from datetime import datetime
@@ -13,22 +13,22 @@ class Examination(str, Enum):
 
 class CreateUser(BaseModel):
     email: str
-    affiliate_code: str | None = None
-    referral_code: str | None = None
+    affiliate_code: str | None = Field(default=None, validation_alias=AliasChoices("affiliate_code", "affiliateCode"))
+    referral_code: str | None = Field(default=None, validation_alias=AliasChoices("referral_code", "referralCode"))
 
 
 class UpdateUser(BaseModel):
-    first_name: str | None = None
-    last_name: str | None = None
+    first_name: str | None = Field(default=None, validation_alias=AliasChoices("first_name", "firstName"))
+    last_name: str | None = Field(default=None, validation_alias=AliasChoices("last_name", "lastName"))
     state: str | None = None
     university: str | None = None
     examinations: list[Examination] | None = None
-    current_expectation: str | None = None
+    current_expectation: str | None = Field(default=None, validation_alias=AliasChoices("current_expectation", "currentExpectation"))
     phone: str | None = None
-    current_examination_date: str | None = None
-    profile_picture: str | None = None
-    affiliate_code: str | None = None
-    referral_code: str | None = None
+    current_examination_date: str | None = Field(default=None, validation_alias=AliasChoices("current_examination_date", "currentExaminationDate"))
+    profile_picture: str | None = Field(default=None, validation_alias=AliasChoices("profile_picture", "profilePicture"))
+    affiliate_code: str | None = Field(default=None, validation_alias=AliasChoices("affiliate_code", "affiliateCode"))
+    referral_code: str | None = Field(default=None, validation_alias=AliasChoices("referral_code", "referralCode"))
 
 
 
