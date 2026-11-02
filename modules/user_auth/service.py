@@ -3,7 +3,7 @@ import uuid
 import httpx
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from common.classes.return_type import ReturnType
 from common.database import get_db
@@ -46,19 +46,11 @@ class UserService:
 
         code_str = raw_code.strip()
         stmt = select(Affiliate).where(
-            Affiliate.code == code_str,
+            func.lower(Affiliate.code) == code_str,
             Affiliate.isDeleted == False,
         )
         result = await self.db.execute(stmt)
         affiliate = result.scalars().first()
-
-        if affiliate is None and code_str != code_str.upper():
-            stmt_upper = select(Affiliate).where(
-                Affiliate.code == code_str.upper(),
-                Affiliate.isDeleted == False,
-            )
-            res_upper = await self.db.execute(stmt_upper)
-            affiliate = res_upper.scalars().first()
 
         if affiliate is None:
             raise BadRequestException("Invalid affiliate code")
@@ -80,7 +72,7 @@ class UserService:
                 raise BadRequestException("User with this email already exists")
 
             # Validate affiliate / referral code if provided
-            raw_affiliate_code = payload.affiliate_code
+            raw_affiliate_code = payload.affiliate_code or payload.referral_code
             validated_referral_code = await self._validate_affiliate_code(raw_affiliate_code)
 
             # Create User
