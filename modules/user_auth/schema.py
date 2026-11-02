@@ -13,7 +13,6 @@ class Examination(str, Enum):
 
 class CreateUser(BaseModel):
     email: str
-    affiliate_code: str | None = Field(default=None, validation_alias=AliasChoices("affiliate_code", "affiliateCode"))
     referral_code: str | None = Field(default=None, validation_alias=AliasChoices("referral_code", "referralCode"))
 
 
@@ -27,7 +26,6 @@ class UpdateUser(BaseModel):
     phone: str | None = None
     current_examination_date: str | None = Field(default=None, validation_alias=AliasChoices("current_examination_date", "currentExaminationDate"))
     profile_picture: str | None = Field(default=None, validation_alias=AliasChoices("profile_picture", "profilePicture"))
-    affiliate_code: str | None = Field(default=None, validation_alias=AliasChoices("affiliate_code", "affiliateCode"))
     referral_code: str | None = Field(default=None, validation_alias=AliasChoices("referral_code", "referralCode"))
 
 
