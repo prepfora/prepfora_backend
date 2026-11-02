@@ -46,7 +46,7 @@ class UserService:
 
         code_str = raw_code.strip()
         stmt = select(Affiliate).where(
-            func.lower(Affiliate.code) == code_str,
+            Affiliate.code == code_str,
             Affiliate.isDeleted == False,
         )
         result = await self.db.execute(stmt)
@@ -72,8 +72,7 @@ class UserService:
                 raise BadRequestException("User with this email already exists")
 
             # Validate affiliate / referral code if provided
-            raw_affiliate_code = payload.affiliate_code or payload.referral_code
-            validated_referral_code = await self._validate_affiliate_code(raw_affiliate_code)
+            validated_referral_code = await self._validate_affiliate_code(payload.referral_code)
 
             # Create User
             user = User(
@@ -377,9 +376,8 @@ class UserService:
                 user.current_examination_date = payload.current_examination_date
             if payload.profile_picture is not None:
                 user.profile_picture = payload.profile_picture
-            if payload.affiliate_code is not None or payload.referral_code is not None:
-                raw_affiliate_code = payload.affiliate_code or payload.referral_code
-                user.referral_code = await self._validate_affiliate_code(raw_affiliate_code)
+            if payload.referral_code is not None:
+                user.referral_code = await self._validate_affiliate_code(payload.referral_code)
 
             await self.db.commit()
             await self.db.refresh(user)
