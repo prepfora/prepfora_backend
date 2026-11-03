@@ -12,7 +12,8 @@ from sqlalchemy.orm.attributes import flag_modified
 from models.examination_model import Examination
 from models.answer_model import Answer
 from models.question_model import Question
-from modules.questions.service import get_subject_variants, get_examtype_variants
+from modules.questions.service import get_subject_variants, get_examtype_variants, QuestionsService
+from modules.questions.schema import QuestionItem
 from modules.examination.schema import (
     CreateExamination,
     UpdateExamination,
@@ -20,6 +21,27 @@ from modules.examination.schema import (
     CreateAnswer,
     AnswerReturn,
 )
+
+
+def get_all_subject_variants(subjects: list[str]) -> set[str]:
+    variants = set()
+    for s in subjects:
+        if not s or not s.strip():
+            continue
+        cleaned = s.strip().lower()
+        variants.add(cleaned)
+        variants.add(cleaned.replace("-", " "))
+        variants.add(cleaned.replace(" ", "-"))
+        variants.add(cleaned.replace("-", ""))
+        variants.add(cleaned.replace(" ", ""))
+        for v in get_subject_variants(cleaned):
+            v_clean = v.strip().lower()
+            variants.add(v_clean)
+            variants.add(v_clean.replace("-", " "))
+            variants.add(v_clean.replace(" ", "-"))
+            variants.add(v_clean.replace("-", ""))
+            variants.add(v_clean.replace(" ", ""))
+    return variants
 
 
 def _parse_str_list(val) -> list[str]:
@@ -59,6 +81,7 @@ class ExaminationService:
         """
         Efficiently fetches question IDs for each subject based on count_per_subject.
         Selects only Question.id to minimize memory and network overhead.
+        Only fetches questions for the specified subjects.
         Includes fallback stages if specific year or exam body has fewer questions.
         """
         if not self.db:
@@ -88,7 +111,10 @@ class ExaminationService:
             subj_variants = get_subject_variants(subject)
             subj_condition = or_(
                 func.lower(Question.subject).in_(subj_variants),
-                func.lower(Question.category).in_(subj_variants),
+                (
+                    or_(Question.subject.is_(None), Question.subject == "")
+                    & func.lower(Question.category).in_(subj_variants)
+                ),
             )
 
             # Base filters for subject
@@ -98,6 +124,10 @@ class ExaminationService:
             ]
             if type_variants:
                 base_filters.append(func.lower(Question.examtype).in_(type_variants))
+
+            # Exclude already picked questions across all subjects to prevent duplicates
+            if all_ids:
+                base_filters.append(Question.id.not_in(all_ids))
 
             # Primary attempt: Filter by subject, type and specific year (if given)
             filters_q1 = list(base_filters)
@@ -117,8 +147,9 @@ class ExaminationService:
             if clean_year and len(subj_ids) < count_per_subject:
                 remaining = count_per_subject - len(subj_ids)
                 filters_q2 = list(base_filters)
-                if subj_ids:
-                    filters_q2.append(Question.id.not_in(subj_ids))
+                exclude_ids = list(all_ids) + list(subj_ids)
+                if exclude_ids:
+                    filters_q2.append(Question.id.not_in(exclude_ids))
                 stmt2 = (
                     select(Question.id)
                     .where(*filters_q2)
@@ -135,8 +166,9 @@ class ExaminationService:
                     Question.isDeleted == False,
                     subj_condition,
                 ]
-                if subj_ids:
-                    filters_q3.append(Question.id.not_in(subj_ids))
+                exclude_ids = list(all_ids) + list(subj_ids)
+                if exclude_ids:
+                    filters_q3.append(Question.id.not_in(exclude_ids))
                 stmt3 = (
                     select(Question.id)
                     .where(*filters_q3)
@@ -164,6 +196,16 @@ class ExaminationService:
         if not self.db:
             raise BadRequestException("Database session not initialized")
 
+        clean_subjects: list[str] = []
+        for s in (body.subjects or []):
+            if s and s.strip():
+                s_clean = s.strip()
+                if s_clean not in clean_subjects:
+                    clean_subjects.append(s_clean)
+
+        if not clean_subjects:
+            raise BadRequestException("At least one subject must be specified")
+
         exam_type_str = (
             body.exam_type.value
             if hasattr(body.exam_type, "value")
@@ -171,31 +213,88 @@ class ExaminationService:
         )
         type_str = body.type.value if hasattr(body.type, "value") else str(body.type)
 
-        # Determine questions IDs: if total_question is specified, fetch questions for each subject
-        if body.total_question and body.total_question > 0 and body.subjects:
-            questions_ids = await self.fetch_question_ids_for_examination(
-                subjects=body.subjects,
-                count_per_subject=body.total_question,
+        # Determine questions IDs: only subjects listed in subject array are fetched
+        if (body.total_question and body.total_question > 0) or not body.questions_ids:
+            count_per_subject = body.total_question if (body.total_question and body.total_question > 0) else 10
+            raw_questions_ids = await self.fetch_question_ids_for_examination(
+                subjects=clean_subjects,
+                count_per_subject=count_per_subject,
                 exam_type=exam_type_str,
                 exam_year=body.exam_year,
             )
         elif body.questions_ids:
-            questions_ids = body.questions_ids
+            raw_questions_ids = list(body.questions_ids)
         else:
-            questions_ids = []
+            raw_questions_ids = []
 
-        total_question_val = body.total_question or (len(questions_ids) if questions_ids else 0)
+        # Before sending back the response, remove any question that does not match the selected subjects
+        allowed_variants = get_all_subject_variants(clean_subjects)
+
+        filtered_questions_ids: list[int] = []
+        filtered_question_items: list[QuestionItem] = []
+
+        if raw_questions_ids:
+            unique_qids = list(dict.fromkeys(raw_questions_ids))
+            q_stmt = select(Question).where(
+                Question.id.in_(unique_qids),
+                Question.isDeleted == False,
+            )
+            q_res = await self.db.execute(q_stmt)
+            fetched_questions = list(q_res.scalars().all())
+
+            # Fallback for external_id if any IDs were not resolved by primary key id
+            found_ids = {q.id for q in fetched_questions}
+            missing_ids = [qid for qid in unique_qids if qid not in found_ids]
+            if missing_ids:
+                stmt_ext = select(Question).where(
+                    Question.external_id.in_(missing_ids),
+                    Question.isDeleted == False,
+                )
+                result_ext = await self.db.execute(stmt_ext)
+                fetched_questions.extend(result_ext.scalars().all())
+
+            valid_questions_by_id: dict[int, Question] = {}
+            for q in fetched_questions:
+                q_subj = (q.subject or "").strip().lower()
+                q_cat = (q.category or "").strip().lower()
+
+                matches = False
+                if q_subj:
+                    if q_subj in allowed_variants or any(v in allowed_variants for v in get_subject_variants(q_subj)):
+                        matches = True
+                elif q_cat:
+                    if q_cat in allowed_variants or any(v in allowed_variants for v in get_subject_variants(q_cat)):
+                        matches = True
+
+                if matches:
+                    valid_questions_by_id[q.id] = q
+                    if q.external_id is not None:
+                        valid_questions_by_id[q.external_id] = q
+
+            seen_ids = set()
+            for qid in raw_questions_ids:
+                q_obj = valid_questions_by_id.get(qid)
+                if q_obj and q_obj.id not in seen_ids:
+                    filtered_questions_ids.append(q_obj.id)
+                    filtered_question_items.append(QuestionsService._to_question_item(q_obj))
+                    seen_ids.add(q_obj.id)
+
+        if not filtered_questions_ids:
+            logger.warning(f"No questions found matching selected subjects: {clean_subjects}")
+            raise BadRequestException(f"No questions found matching selected subject(s): {', '.join(clean_subjects)}")
+
+        total_question_val = len(filtered_questions_ids)
 
         examination = Examination(
             user_id=body.user_id,
             type=type_str,
-            subjects=body.subjects,
+            subjects=clean_subjects,
             total_question=total_question_val,
             total_score=body.total_score,
             time=body.time,
             total_questions_answered=body.total_questions_answered or 0,
             total_questions_failed=body.total_questions_failed or 0,
-            questions_ids=questions_ids,
+            questions_ids=filtered_questions_ids,
             correct_questions=body.correct_questions,
             failed_questions=body.failed_questions,
             exam_year=body.exam_year,
@@ -204,11 +303,17 @@ class ExaminationService:
         self.db.add(examination)
         await self.db.commit()
         await self.db.refresh(examination)
-        logger.info(f"Examination created with id={examination.id}, total questions={len(questions_ids)}")
+        examination.questions = filtered_question_items
+
+        logger.info(f"Examination created with id={examination.id}, total questions={len(filtered_questions_ids)}")
+
+        ret_data = ExaminationReturn.model_validate(examination)
+        ret_data.questions = filtered_question_items
+
         return ReturnType[ExaminationReturn](
             success=True,
             message="Examination created successfully",
-            data=ExaminationReturn.model_validate(examination),
+            data=ret_data,
         )
 
     async def update_examination(
@@ -368,6 +473,40 @@ class ExaminationService:
         return ReturnType[ExaminationReturn](
             success=True,
             message="Examination fetched successfully",
+            data=ExaminationReturn.model_validate(examination),
+        )
+
+    async def delete_examination(
+        self, id: uuid.UUID
+    ) -> ReturnType[ExaminationReturn]:
+        if not self.db:
+            raise BadRequestException("Database session not initialized")
+
+        stmt = (
+            select(Examination)
+            .options(selectinload(Examination.answers))
+            .where(Examination.id == id, Examination.isDeleted == False)
+        )
+        result = await self.db.execute(stmt)
+        examination = result.scalars().first()
+        if not examination:
+            logger.error(f"Examination not found with id={id}")
+            raise BadRequestException(f"Examination with id {id} not found")
+
+        now = func.now()
+        examination.isDeleted = True
+        examination.deleted_at = now
+        for answer in examination.answers:
+            if not answer.isDeleted:
+                answer.isDeleted = True
+                answer.deleted_at = now
+
+        await self.db.commit()
+        await self.db.refresh(examination)
+        logger.info(f"Examination deleted with id={id}")
+        return ReturnType[ExaminationReturn](
+            success=True,
+            message="Examination deleted successfully",
             data=ExaminationReturn.model_validate(examination),
         )
 

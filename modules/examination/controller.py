@@ -132,3 +132,15 @@ async def update_examination(
         logger.error("Failed to update examination: " + str(e))
         raise BadRequestException(str(e))
 
+
+@router.delete("/{id}", response_model=ReturnType[ExaminationReturn], status_code=200)
+async def delete_examination(
+    id: uuid.UUID = Path(..., description="Examination ID"),
+    service: ExaminationService = Depends(get_examination_service),
+) -> ReturnType[ExaminationReturn]:
+    try:
+        return await service.delete_examination(id)
+    except Exception as e:
+        logger.error("Failed to delete examination: " + str(e))
+        raise BadRequestException(str(e))
+
