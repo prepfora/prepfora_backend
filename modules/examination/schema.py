@@ -3,6 +3,7 @@ from datetime import datetime
 import uuid
 import json
 from models.examination_model import ExaminationType, Type
+from modules.questions.schema import QuestionItem
 
 
 class CreateExamination(BaseModel):
@@ -77,6 +78,7 @@ class ExaminationReturn(BaseModel):
     total_questions_failed: int
     questions_ids: list[int] | None = None
     question_ids: list[int] | None = None
+    questions: list[QuestionItem] | None = None
     correct_questions: list[str] | None = None
     failed_questions: list[str] | None = None
     exam_year: str
