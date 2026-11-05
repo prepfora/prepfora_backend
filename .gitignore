@@ -1,7 +1,7 @@
-.env
-.env*
 *.log
 __pycache__/
 *.pyc
 scripts/*.pid
 scripts/*checkpoint.json
+config.bat
+node_modules
