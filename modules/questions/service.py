@@ -194,8 +194,8 @@ class QuestionsService:
                 type_variants = get_examtype_variants(type)
                 filters.append(func.lower(Question.examtype).in_(type_variants))
 
-            if year:
-                filters.append(func.trim(Question.examyear) == str(year).strip())
+            # if year:
+            #     filters.append(func.trim(Question.examyear) == str(year).strip())
 
             count_stmt = select(func.count()).select_from(Question).where(*filters)
             total_result = await self.db.execute(count_stmt)
