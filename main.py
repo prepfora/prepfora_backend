@@ -22,6 +22,7 @@ from modules.upload.controller import router as upload_controller
 from modules.notifications.controller import router as notification_controller
 from modules.analytics.controller import router as analytics_controller
 from modules.affiliate.controller import router as affiliate_controller
+from modules.user.controller import router as user_controller, admin_users_router as admin_user_controller
 import models  # Import all models to ensure SQLAlchemy mappers are registered
 
 
@@ -101,3 +102,5 @@ app.include_router(upload_controller)
 app.include_router(notification_controller)
 app.include_router(analytics_controller)
 app.include_router(affiliate_controller)
+app.include_router(user_controller)
+app.include_router(admin_user_controller)
