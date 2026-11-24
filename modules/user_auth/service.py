@@ -19,6 +19,7 @@ from fastapi import Depends
 from models.user_model import User
 from models.otp_model import Otp
 from models.affiliate_model import Affiliate
+from modules.badges.service import BadgeService
 from modules.user_auth.schema import (
     CreateUser,
     UpdateUser,
@@ -276,6 +277,12 @@ class UserService:
                 await self.db.commit()
                 await self.db.refresh(user)
 
+            # Award profile setup badge if profile is already complete
+            try:
+                await BadgeService(self.db).check_and_award_profile_badge(user)
+            except Exception as badge_err:
+                logger.error("Failed to evaluate profile badge during google_auth: " + str(badge_err))
+
             # Generate tokens
             tokens_dict = create_access_token({"sub": str(user.id), "email": user.email})
             token_data = TokenData(
@@ -381,6 +388,12 @@ class UserService:
 
             await self.db.commit()
             await self.db.refresh(user)
+
+            # Award profile setup badge if profile is now complete
+            try:
+                await BadgeService(self.db).check_and_award_profile_badge(user)
+            except Exception as badge_err:
+                logger.error("Failed to evaluate profile badge during update_user_details: " + str(badge_err))
 
             return ReturnType[UserResponse](
                 success=True,

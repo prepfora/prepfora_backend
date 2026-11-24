@@ -4,6 +4,7 @@ import uuid
 import json
 from models.examination_model import ExaminationType, Type
 from modules.questions.schema import QuestionItem
+from modules.badges.schema import BadgeResponse
 
 
 class CreateExamination(BaseModel):
@@ -12,6 +13,7 @@ class CreateExamination(BaseModel):
     subjects: list[str]
     total_question: int | None = None
     total_score: int | None = None
+    score: float | None = None
     time: str | None = None
     total_questions_answered: int | None = 0
     total_questions_failed: int | None = 0
@@ -30,6 +32,7 @@ class UpdateExamination(BaseModel):
     subjects: list[str] | None = None
     total_question: int | None = None
     total_score: int | None = None
+    score: float | None = None
     time: str | None = None
     total_questions_answered: int | None = None
     total_questions_failed: int | None = None
@@ -73,6 +76,7 @@ class ExaminationReturn(BaseModel):
     subjects: list[str]
     total_question: int | None = None
     total_score: int | None = None
+    score: float | None = None
     time: str | None = None
     total_questions_answered: int
     total_questions_failed: int
@@ -83,6 +87,8 @@ class ExaminationReturn(BaseModel):
     failed_questions: list[str] | None = None
     exam_year: str
     exam_type: ExaminationType | str
+    is_completed: bool = False
+    completed_at: datetime | None = None
     answers: list[AnswerReturn] = Field(default_factory=list)
     created_at: datetime | None = None
     updated_at: datetime | None = None
@@ -125,4 +131,31 @@ class CreateAnswer(BaseModel):
     picked_answer: str
     correct_answer: str | None = None
     user_id: uuid.UUID | None = None
+
+
+class SubjectScoreBreakdown(BaseModel):
+    subject: str
+    is_english: bool
+    correct_answers: int
+    total_questions_for_formula: int
+    multiplier: float
+    score: float
+
+
+class JambScoreResponse(BaseModel):
+    examination_id: uuid.UUID
+    exam_type: str
+    score: float
+    max_score: float = 400.0
+    total_correct_answers: int
+    subject_breakdown: list[SubjectScoreBreakdown] = Field(default_factory=list)
+    newly_earned_badges: list[BadgeResponse] = Field(default_factory=list)
+
+
+class EndExaminationResponse(BaseModel):
+    examination: ExaminationReturn
+    score: float
+    is_jamb: bool
+    subject_breakdown: list[SubjectScoreBreakdown] | None = None
+    newly_earned_badges: list[BadgeResponse] = Field(default_factory=list)
 

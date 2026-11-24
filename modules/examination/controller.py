@@ -12,6 +12,8 @@ from modules.examination.schema import (
     CreateAnswer,
     SubmitAnswer,
     AnswerReturn,
+    JambScoreResponse,
+    EndExaminationResponse,
 )
 
 router = APIRouter(
@@ -93,6 +95,30 @@ async def get_examination_answers(
         return await service.get_examination_answers(id)
     except Exception as e:
         logger.error("Failed to get examination answers: " + str(e))
+        raise BadRequestException(str(e))
+
+
+@router.post("/{id}/calculate-jamb-score", response_model=ReturnType[JambScoreResponse], status_code=200)
+async def calculate_jamb_score(
+    id: uuid.UUID = Path(..., description="Examination ID"),
+    service: ExaminationService = Depends(get_examination_service),
+) -> ReturnType[JambScoreResponse]:
+    try:
+        return await service.calculate_jamb_score(id)
+    except Exception as e:
+        logger.error("Failed to calculate JAMB score: " + str(e))
+        raise BadRequestException(str(e))
+
+
+@router.post("/{id}/end", response_model=ReturnType[EndExaminationResponse], status_code=200)
+async def end_examination(
+    id: uuid.UUID = Path(..., description="Examination ID"),
+    service: ExaminationService = Depends(get_examination_service),
+) -> ReturnType[EndExaminationResponse]:
+    try:
+        return await service.end_examination(id)
+    except Exception as e:
+        logger.error("Failed to end examination: " + str(e))
         raise BadRequestException(str(e))
 
 
