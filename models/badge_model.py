@@ -11,6 +11,7 @@ class Badge(Base):
     __tablename__ = "badge"
 
     id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), default=uuid.uuid4, primary_key=True, index=True)
+    code: Mapped[str | None] = mapped_column(String(100), nullable=True, unique=True, index=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     description: Mapped[str] = mapped_column(String, nullable=False)
     image: Mapped[str] = mapped_column(String(255), nullable=False)

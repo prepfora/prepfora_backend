@@ -1,5 +1,6 @@
+from datetime import datetime
 from typing import TYPE_CHECKING
-from sqlalchemy import String, Integer
+from sqlalchemy import String, Integer, Float, Boolean, DateTime
 from sqlalchemy.dialects.postgresql import ARRAY, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from common.database import Base
@@ -13,6 +14,7 @@ if TYPE_CHECKING:
 class ExaminationType(str, Enum):
     WAEC = "waec"
     UTME = "utme"
+    JAMB = "jamb"
     NECO = "neco"
     POST_UTME = "post-utme"
 
@@ -30,6 +32,7 @@ class Examination(Base):
     subjects: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False)
     total_question: Mapped[int | None] = mapped_column(Integer, nullable=True)
     total_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    score: Mapped[float | None] = mapped_column(Float, nullable=True, default=0.0)
     time: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     total_questions_answered: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -39,6 +42,8 @@ class Examination(Base):
     failed_questions: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
     exam_year: Mapped[str] = mapped_column(String(50), nullable=False)
     exam_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    is_completed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     answers: Mapped[list["Answer"]] = relationship(

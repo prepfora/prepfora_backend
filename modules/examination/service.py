@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from fastapi import Depends
 from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload
@@ -12,14 +13,20 @@ from sqlalchemy.orm.attributes import flag_modified
 from models.examination_model import Examination
 from models.answer_model import Answer
 from models.question_model import Question
+from models.user_model import User
 from modules.questions.service import get_subject_variants, get_examtype_variants, QuestionsService
 from modules.questions.schema import QuestionItem
+from modules.badges.schema import BadgeResponse
+from modules.badges.service import BadgeService
 from modules.examination.schema import (
     CreateExamination,
     UpdateExamination,
     ExaminationReturn,
     CreateAnswer,
     AnswerReturn,
+    SubjectScoreBreakdown,
+    JambScoreResponse,
+    EndExaminationResponse,
 )
 
 
@@ -291,6 +298,7 @@ class ExaminationService:
             subjects=clean_subjects,
             total_question=total_question_val,
             total_score=body.total_score,
+            score=body.score,
             time=body.time,
             total_questions_answered=body.total_questions_answered or 0,
             total_questions_failed=body.total_questions_failed or 0,
@@ -343,6 +351,8 @@ class ExaminationService:
             examination.total_question = body.total_question
         if body.total_score is not None:
             examination.total_score = body.total_score
+        if body.score is not None:
+            examination.score = body.score
         if body.time is not None:
             examination.time = body.time
         if body.total_questions_answered is not None:
@@ -639,6 +649,268 @@ class ExaminationService:
             success=True,
             message="Answers fetched successfully",
             data=data,
+        )
+
+    @staticmethod
+    def _is_jamb_exam_type(exam_type: str | None) -> bool:
+        if not exam_type:
+            return False
+        return str(exam_type).strip().lower() in ("jamb", "utme")
+
+    @staticmethod
+    def _is_english_subject(subject: str | None) -> bool:
+        if not subject:
+            return False
+        english_variants = set(get_subject_variants("english"))
+        s = subject.strip().lower()
+        return (
+            s in english_variants
+            or s.replace(" ", "-") in english_variants
+            or s.replace("-", " ") in english_variants
+            or any(v in english_variants for v in get_subject_variants(s))
+        )
+
+    async def _update_user_best_score(self, user_id: uuid.UUID, score: float) -> None:
+        user_stmt = select(User).where(User.id == user_id, User.isDeleted == False)
+        user = (await self.db.execute(user_stmt)).scalars().first()
+        if user is not None:
+            rounded = round(score)
+            if rounded > (user.best_score or 0):
+                user.best_score = rounded
+
+    async def _compute_jamb_score(
+        self, examination: Examination
+    ) -> tuple[float, int, list[SubjectScoreBreakdown]]:
+        """
+        Calculates JAMB score using the official formula:
+        - Use of English (60 questions): (correct_answers / 60) * 100  (approx correct * 1.67, capped at 100)
+        - Three other subjects (40 questions each): (correct_answers / 40) * 100  (correct * 2.5, capped at 100)
+        """
+        active_answers = [a for a in (examination.answers or []) if not a.isDeleted]
+
+        correct_question_ids: list[int] = []
+        if active_answers:
+            for ans in active_answers:
+                if (
+                    ans.picked_answer is not None
+                    and ans.correct_answer is not None
+                    and ans.picked_answer.strip().lower() == ans.correct_answer.strip().lower()
+                ):
+                    correct_question_ids.append(ans.question_id)
+        else:
+            for qid_str in _parse_str_list(examination.correct_questions):
+                try:
+                    correct_question_ids.append(int(qid_str))
+                except (ValueError, TypeError):
+                    continue
+
+        # Build canonical subject buckets starting from examination.subjects
+        exam_subjects: list[str] = list(examination.subjects or [])
+        subject_variant_map: list[tuple[str, set[str]]] = [
+            (subj, set(get_subject_variants(subj))) for subj in exam_subjects
+        ]
+        correct_counts_by_subject: dict[str, int] = {subj: 0 for subj in exam_subjects}
+
+        if correct_question_ids:
+            unique_qids = list(dict.fromkeys(correct_question_ids))
+            q_stmt = select(Question).where(
+                or_(Question.id.in_(unique_qids), Question.external_id.in_(unique_qids)),
+                Question.isDeleted == False,
+            )
+            q_rows = list((await self.db.execute(q_stmt)).scalars().all())
+            q_by_id: dict[int, Question] = {}
+            for q in q_rows:
+                q_by_id[q.id] = q
+                if q.external_id is not None and q.external_id not in q_by_id:
+                    q_by_id[q.external_id] = q
+
+            for qid in unique_qids:
+                q_obj = q_by_id.get(qid)
+                raw_subj = (
+                    (q_obj.subject or q_obj.category or "").strip()
+                    if q_obj
+                    else ""
+                )
+                matched_bucket: str | None = None
+                if raw_subj:
+                    raw_variants = set(get_subject_variants(raw_subj))
+                    for bucket_name, bucket_variants in subject_variant_map:
+                        if raw_subj.lower() in bucket_variants or bool(raw_variants & bucket_variants):
+                            matched_bucket = bucket_name
+                            break
+                    if matched_bucket is None:
+                        matched_bucket = raw_subj
+                        if matched_bucket not in correct_counts_by_subject:
+                            correct_counts_by_subject[matched_bucket] = 0
+                elif exam_subjects:
+                    matched_bucket = exam_subjects[0]
+
+                if matched_bucket is not None:
+                    correct_counts_by_subject[matched_bucket] = (
+                        correct_counts_by_subject.get(matched_bucket, 0) + 1
+                    )
+
+        breakdown: list[SubjectScoreBreakdown] = []
+        total_score = 0.0
+        total_correct = 0
+
+        for subj_name, correct_count in correct_counts_by_subject.items():
+            is_english = self._is_english_subject(subj_name)
+            if is_english:
+                total_q_formula = 60
+                multiplier = 1.67
+                subj_score = min(100.0, round((correct_count / 60) * 100, 2))
+            else:
+                total_q_formula = 40
+                multiplier = 2.5
+                subj_score = min(100.0, round((correct_count / 40) * 100, 2))
+
+            total_score += subj_score
+            total_correct += correct_count
+            breakdown.append(
+                SubjectScoreBreakdown(
+                    subject=subj_name,
+                    is_english=is_english,
+                    correct_answers=correct_count,
+                    total_questions_for_formula=total_q_formula,
+                    multiplier=multiplier,
+                    score=subj_score,
+                )
+            )
+
+        total_score = round(total_score, 2)
+        return total_score, total_correct, breakdown
+
+    async def calculate_jamb_score(
+        self, examination_id: uuid.UUID
+    ) -> ReturnType[JambScoreResponse]:
+        if not self.db:
+            raise BadRequestException("Database session not initialized")
+
+        stmt = (
+            select(Examination)
+            .options(selectinload(Examination.answers))
+            .where(Examination.id == examination_id, Examination.isDeleted == False)
+            .execution_options(populate_existing=True)
+        )
+        result = await self.db.execute(stmt)
+        examination = result.scalars().first()
+        if not examination:
+            logger.error(f"Examination not found with id={examination_id}")
+            raise BadRequestException(f"Examination with id {examination_id} not found")
+
+        if not self._is_jamb_exam_type(examination.exam_type):
+            raise BadRequestException(
+                f"Examination exam_type '{examination.exam_type}' is not a JAMB/UTME examination"
+            )
+
+        total_score, total_correct, breakdown = await self._compute_jamb_score(examination)
+        examination.score = total_score
+        examination.total_score = round(total_score)
+
+        await self._update_user_best_score(examination.user_id, total_score)
+        await self.db.commit()
+        await self.db.refresh(examination)
+
+        badge_service = BadgeService(self.db)
+        newly_awarded = await badge_service.check_and_award_exam_badges(examination.user_id)
+
+        logger.info(f"Calculated JAMB score={total_score} for examination_id={examination.id}")
+        return ReturnType[JambScoreResponse](
+            success=True,
+            message="JAMB score calculated successfully",
+            data=JambScoreResponse(
+                examination_id=examination.id,
+                exam_type=examination.exam_type,
+                score=total_score,
+                max_score=400.0,
+                total_correct_answers=total_correct,
+                subject_breakdown=breakdown,
+                newly_earned_badges=[BadgeResponse.model_validate(b) for b in newly_awarded],
+            ),
+        )
+
+    async def end_examination(
+        self, examination_id: uuid.UUID
+    ) -> ReturnType[EndExaminationResponse]:
+        if not self.db:
+            raise BadRequestException("Database session not initialized")
+
+        stmt = (
+            select(Examination)
+            .options(selectinload(Examination.answers))
+            .where(Examination.id == examination_id, Examination.isDeleted == False)
+            .execution_options(populate_existing=True)
+        )
+        result = await self.db.execute(stmt)
+        examination = result.scalars().first()
+        if not examination:
+            logger.error(f"Examination not found with id={examination_id}")
+            raise BadRequestException(f"Examination with id {examination_id} not found")
+
+        # Sync answer statistics from active Answer rows if present
+        active_answers = [a for a in (examination.answers or []) if not a.isDeleted]
+        if active_answers:
+            correct_list: list[str] = []
+            failed_list: list[str] = []
+            for ans in active_answers:
+                qid_str = str(ans.question_id)
+                if (
+                    ans.picked_answer is not None
+                    and ans.correct_answer is not None
+                    and ans.picked_answer.strip().lower() == ans.correct_answer.strip().lower()
+                ):
+                    if qid_str not in correct_list:
+                        correct_list.append(qid_str)
+                else:
+                    if qid_str not in failed_list:
+                        failed_list.append(qid_str)
+
+            examination.total_questions_answered = len(active_answers)
+            examination.total_questions_failed = len(failed_list)
+            examination.correct_questions = correct_list
+            examination.failed_questions = failed_list
+            flag_modified(examination, "correct_questions")
+            flag_modified(examination, "failed_questions")
+
+        examination.is_completed = True
+        if examination.completed_at is None:
+            examination.completed_at = datetime.now(timezone.utc)
+
+        is_jamb = self._is_jamb_exam_type(examination.exam_type)
+        breakdown: list[SubjectScoreBreakdown] | None = None
+
+        if is_jamb:
+            score, _, breakdown = await self._compute_jamb_score(examination)
+        else:
+            correct_count = len(_parse_str_list(examination.correct_questions))
+            total_q = examination.total_question or len(examination.questions_ids or []) or 0
+            score = round((correct_count / total_q) * 100, 2) if total_q > 0 else 0.0
+
+        examination.score = score
+        examination.total_score = round(score)
+
+        await self._update_user_best_score(examination.user_id, score)
+        await self.db.commit()
+        await self.db.refresh(examination)
+
+        badge_service = BadgeService(self.db)
+        newly_awarded = await badge_service.check_and_award_exam_badges(examination.user_id)
+
+        logger.info(
+            f"Ended examination_id={examination.id}, is_jamb={is_jamb}, score={score}, "
+            f"new_badges={len(newly_awarded)}"
+        )
+        return ReturnType[EndExaminationResponse](
+            success=True,
+            message="Examination ended successfully",
+            data=EndExaminationResponse(
+                examination=ExaminationReturn.model_validate(examination),
+                score=score,
+                is_jamb=is_jamb,
+                subject_breakdown=breakdown,
+                newly_earned_badges=[BadgeResponse.model_validate(b) for b in newly_awarded],
+            ),
         )
 
 

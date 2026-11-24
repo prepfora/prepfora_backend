@@ -3,7 +3,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from common.exceptions.api_exception import APIException
 from contextlib import asynccontextmanager
-from common.database import Base, engine
+from common.database import Base, engine, AsyncSessionLocal
 from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
 load_dotenv()
@@ -23,6 +23,9 @@ from modules.notifications.controller import router as notification_controller
 from modules.analytics.controller import router as analytics_controller
 from modules.affiliate.controller import router as affiliate_controller
 from modules.user.controller import router as user_controller, admin_users_router as admin_user_controller
+from modules.badges.controller import router as badges_controller
+from modules.badges.service import BadgeService
+from modules.leaderboard.controller import router as leaderboard_controller
 import models  # Import all models to ensure SQLAlchemy mappers are registered
 
 
@@ -31,6 +34,8 @@ import models  # Import all models to ensure SQLAlchemy mappers are registered
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    async with AsyncSessionLocal() as session:
+        await BadgeService(session).seed_default_badges()
     yield
     await engine.dispose()
 
@@ -104,3 +109,5 @@ app.include_router(analytics_controller)
 app.include_router(affiliate_controller)
 app.include_router(user_controller)
 app.include_router(admin_user_controller)
+app.include_router(badges_controller)
+app.include_router(leaderboard_controller)
