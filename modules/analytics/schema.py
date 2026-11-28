@@ -55,3 +55,39 @@ class AdminAnalyticsResponse(BaseModel):
         default_factory=list,
         description="7-day daily activity trends for dashboard visualisations",
     )
+
+
+class GlobalSubjectPerformance(BaseModel):
+    subject: str = Field(description="Canonical subject name")
+    total_examinations: int = Field(description="Number of examinations that included this subject")
+    total_students: int = Field(description="Number of unique students who attempted this subject")
+    total_questions_attempted: int = Field(description="Total questions answered in this subject")
+    total_correct: int = Field(description="Total questions answered correctly")
+    total_failed: int = Field(description="Total questions answered incorrectly")
+    accuracy_percentage: float = Field(description="Overall accuracy percentage (0-100)")
+    average_score_percentage: float = Field(description="Average per-exam score percentage (0-100)")
+
+
+class ExamTypeGlobalPerformance(BaseModel):
+    exam_type: str = Field(description="Examination type (jamb or neco)")
+    total_examinations: int = Field(description="Total examinations taken for this exam type")
+    total_students: int = Field(description="Unique students who took this exam type")
+    total_questions_attempted: int = Field(description="Total questions attempted across all subjects")
+    total_correct: int = Field(description="Total correct answers across all subjects")
+    total_failed: int = Field(description="Total failed answers across all subjects")
+    overall_accuracy_percentage: float = Field(description="Overall accuracy percentage across all subjects")
+    subjects: List[GlobalSubjectPerformance] = Field(
+        default_factory=list,
+        description="Performance breakdown per subject",
+    )
+
+
+class GlobalExamPerformanceResponse(BaseModel):
+    jamb: ExamTypeGlobalPerformance | None = Field(
+        default=None,
+        description="Global performance for JAMB/UTME examinations per subject",
+    )
+    neco: ExamTypeGlobalPerformance | None = Field(
+        default=None,
+        description="Global performance for NECO examinations per subject",
+    )

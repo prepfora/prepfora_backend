@@ -27,6 +27,8 @@ from modules.examination.schema import (
     SubjectScoreBreakdown,
     JambScoreResponse,
     EndExaminationResponse,
+    ExaminationSubjectPerformance,
+    ExaminationPerformanceResponse,
 )
 
 
@@ -910,6 +912,196 @@ class ExaminationService:
                 is_jamb=is_jamb,
                 subject_breakdown=breakdown,
                 newly_earned_badges=[BadgeResponse.model_validate(b) for b in newly_awarded],
+            ),
+        )
+
+    async def get_examination_performance(
+        self,
+        examination_id: uuid.UUID,
+        user_id: uuid.UUID | None = None,
+    ) -> ReturnType[ExaminationPerformanceResponse]:
+        """Returns a per-subject performance breakdown for a single examination."""
+        if not self.db:
+            raise BadRequestException("Database session not initialized")
+
+        stmt = (
+            select(Examination)
+            .options(selectinload(Examination.answers))
+            .where(Examination.id == examination_id, Examination.isDeleted == False)
+        )
+        result = await self.db.execute(stmt)
+        examination = result.scalars().first()
+        if not examination:
+            logger.error(f"Examination not found with id={examination_id}")
+            raise BadRequestException(f"Examination with id {examination_id} not found")
+
+        if user_id is not None and examination.user_id != user_id:
+            raise BadRequestException("Examination does not belong to the specified user")
+
+        active_answers = [a for a in (examination.answers or []) if not a.isDeleted]
+        exam_qids = list(examination.questions_ids or [])
+
+        # Collect all question IDs from the exam and answers so we can resolve their subjects in one query
+        all_qids: list[int] = list(exam_qids)
+        for ans in active_answers:
+            if ans.question_id not in all_qids:
+                all_qids.append(ans.question_id)
+
+        correct_id_set: set[int] = set()
+        failed_id_set: set[int] = set()
+        if active_answers:
+            for ans in active_answers:
+                if (
+                    ans.picked_answer is not None
+                    and ans.correct_answer is not None
+                    and ans.picked_answer.strip().lower() == ans.correct_answer.strip().lower()
+                ):
+                    correct_id_set.add(ans.question_id)
+                else:
+                    failed_id_set.add(ans.question_id)
+        else:
+            for qid_str in _parse_str_list(examination.correct_questions):
+                try:
+                    qid = int(qid_str)
+                    correct_id_set.add(qid)
+                    if qid not in all_qids:
+                        all_qids.append(qid)
+                except (ValueError, TypeError):
+                    continue
+            for qid_str in _parse_str_list(examination.failed_questions):
+                try:
+                    qid = int(qid_str)
+                    failed_id_set.add(qid)
+                    if qid not in all_qids:
+                        all_qids.append(qid)
+                except (ValueError, TypeError):
+                    continue
+
+        q_by_id: dict[int, Question] = {}
+        if all_qids:
+            unique_qids = list(dict.fromkeys(all_qids))
+            q_stmt = select(Question).where(
+                or_(Question.id.in_(unique_qids), Question.external_id.in_(unique_qids)),
+                Question.isDeleted == False,
+            )
+            q_rows = list((await self.db.execute(q_stmt)).scalars().all())
+            for q in q_rows:
+                q_by_id[q.id] = q
+                if q.external_id is not None and q.external_id not in q_by_id:
+                    q_by_id[q.external_id] = q
+
+        exam_subjects: list[str] = list(examination.subjects or [])
+        subject_variant_map: list[tuple[str, set[str]]] = [
+            (subj, set(get_subject_variants(subj))) for subj in exam_subjects
+        ]
+
+        # Initialize per-subject stats preserving examination.subjects order
+        stats: dict[str, dict[str, int]] = {
+            subj: {"total": 0, "correct": 0, "failed": 0} for subj in exam_subjects
+        }
+
+        def resolve_bucket(qid: int) -> str | None:
+            q_obj = q_by_id.get(qid)
+            raw_subj = (q_obj.subject or q_obj.category or "").strip() if q_obj else ""
+            if raw_subj:
+                raw_variants = set(get_subject_variants(raw_subj))
+                for bucket_name, bucket_variants in subject_variant_map:
+                    if raw_subj.lower() in bucket_variants or bool(raw_variants & bucket_variants):
+                        return bucket_name
+                if raw_subj not in stats:
+                    stats[raw_subj] = {"total": 0, "correct": 0, "failed": 0}
+                return raw_subj
+            return exam_subjects[0] if exam_subjects else None
+
+        seen_total_qids: set[int] = set()
+        for qid in all_qids:
+            if qid in seen_total_qids:
+                continue
+            seen_total_qids.add(qid)
+            bucket = resolve_bucket(qid)
+            if bucket is not None:
+                stats[bucket]["total"] += 1
+
+        for qid in correct_id_set:
+            bucket = resolve_bucket(qid)
+            if bucket is not None:
+                stats[bucket]["correct"] += 1
+
+        for qid in failed_id_set:
+            if qid in correct_id_set:
+                continue
+            bucket = resolve_bucket(qid)
+            if bucket is not None:
+                stats[bucket]["failed"] += 1
+
+        is_jamb = self._is_jamb_exam_type(examination.exam_type)
+        subject_performances: list[ExaminationSubjectPerformance] = []
+        total_questions = 0
+        total_answered = 0
+        total_correct = 0
+        total_failed = 0
+
+        for subj_name, counts in stats.items():
+            subj_total = counts["total"]
+            subj_correct = counts["correct"]
+            subj_failed = counts["failed"]
+            subj_answered = subj_correct + subj_failed
+            if subj_total < subj_answered:
+                subj_total = subj_answered
+            subj_unanswered = max(0, subj_total - subj_answered)
+
+            accuracy_pct = round((subj_correct / subj_answered) * 100, 2) if subj_answered > 0 else 0.0
+            score_pct = round((subj_correct / subj_total) * 100, 2) if subj_total > 0 else 0.0
+
+            jamb_subj_score: float | None = None
+            if is_jamb:
+                denom = 60 if self._is_english_subject(subj_name) else 40
+                jamb_subj_score = min(100.0, round((subj_correct / denom) * 100, 2))
+
+            total_questions += subj_total
+            total_answered += subj_answered
+            total_correct += subj_correct
+            total_failed += subj_failed
+
+            subject_performances.append(
+                ExaminationSubjectPerformance(
+                    subject=subj_name,
+                    total_questions=subj_total,
+                    answered=subj_answered,
+                    correct=subj_correct,
+                    failed=subj_failed,
+                    unanswered=subj_unanswered,
+                    accuracy_percentage=accuracy_pct,
+                    score_percentage=score_pct,
+                    jamb_score=jamb_subj_score,
+                )
+            )
+
+        total_unanswered = max(0, total_questions - total_answered)
+        overall_accuracy = round((total_correct / total_answered) * 100, 2) if total_answered > 0 else 0.0
+        overall_score_pct = round((total_correct / total_questions) * 100, 2) if total_questions > 0 else 0.0
+
+        type_val = examination.type.value if hasattr(examination.type, "value") else str(examination.type)
+
+        return ReturnType[ExaminationPerformanceResponse](
+            success=True,
+            message="Examination performance fetched successfully",
+            data=ExaminationPerformanceResponse(
+                examination_id=examination.id,
+                user_id=examination.user_id,
+                exam_type=examination.exam_type,
+                exam_year=examination.exam_year,
+                type=type_val,
+                is_completed=examination.is_completed,
+                total_questions=total_questions,
+                total_answered=total_answered,
+                total_correct=total_correct,
+                total_failed=total_failed,
+                total_unanswered=total_unanswered,
+                overall_accuracy_percentage=overall_accuracy,
+                overall_score_percentage=overall_score_pct,
+                score=examination.score,
+                subjects=subject_performances,
             ),
         )
 
