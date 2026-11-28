@@ -58,6 +58,25 @@ def get_subject_variants(subject: str | None) -> list[str]:
     return list(variants)
 
 
+def canonicalize_subject(subject: str | None) -> str:
+    if not subject or not subject.strip():
+        return "unknown"
+    s = subject.strip().lower()
+    variants = {s, s.replace("-", " "), s.replace(" ", "-"), s.replace("-", ""), s.replace(" ", "")}
+    for canonical, aliases in SUBJECT_ALIASES.items():
+        all_alts = [canonical.lower()] + [a.lower() for a in aliases]
+        alt_variants = set()
+        for a in all_alts:
+            alt_variants.add(a)
+            alt_variants.add(a.replace("-", " "))
+            alt_variants.add(a.replace(" ", "-"))
+            alt_variants.add(a.replace("-", ""))
+            alt_variants.add(a.replace(" ", ""))
+        if variants & alt_variants:
+            return canonical
+    return s
+
+
 def get_examtype_variants(examtype: str | None) -> list[str]:
     if not examtype:
         return []

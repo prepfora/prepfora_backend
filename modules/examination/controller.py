@@ -14,6 +14,7 @@ from modules.examination.schema import (
     AnswerReturn,
     JambScoreResponse,
     EndExaminationResponse,
+    ExaminationPerformanceResponse,
 )
 
 router = APIRouter(
@@ -95,6 +96,19 @@ async def get_examination_answers(
         return await service.get_examination_answers(id)
     except Exception as e:
         logger.error("Failed to get examination answers: " + str(e))
+        raise BadRequestException(str(e))
+
+
+@router.get("/{id}/performance", response_model=ReturnType[ExaminationPerformanceResponse], status_code=200)
+async def get_examination_performance(
+    id: uuid.UUID = Path(..., description="Examination ID"),
+    user_id: uuid.UUID | None = Query(None, description="Optional user ID to verify examination ownership"),
+    service: ExaminationService = Depends(get_examination_service),
+) -> ReturnType[ExaminationPerformanceResponse]:
+    try:
+        return await service.get_examination_performance(id, user_id=user_id)
+    except Exception as e:
+        logger.error("Failed to get examination performance: " + str(e))
         raise BadRequestException(str(e))
 
 

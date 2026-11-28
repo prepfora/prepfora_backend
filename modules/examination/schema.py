@@ -159,3 +159,33 @@ class EndExaminationResponse(BaseModel):
     subject_breakdown: list[SubjectScoreBreakdown] | None = None
     newly_earned_badges: list[BadgeResponse] = Field(default_factory=list)
 
+
+class ExaminationSubjectPerformance(BaseModel):
+    subject: str
+    total_questions: int
+    answered: int
+    correct: int
+    failed: int
+    unanswered: int
+    accuracy_percentage: float
+    score_percentage: float
+    jamb_score: float | None = None
+
+
+class ExaminationPerformanceResponse(BaseModel):
+    examination_id: uuid.UUID
+    user_id: uuid.UUID
+    exam_type: str
+    exam_year: str
+    type: str
+    is_completed: bool
+    total_questions: int
+    total_answered: int
+    total_correct: int
+    total_failed: int
+    total_unanswered: int
+    overall_accuracy_percentage: float
+    overall_score_percentage: float
+    score: float | None = None
+    subjects: list[ExaminationSubjectPerformance] = Field(default_factory=list)
+

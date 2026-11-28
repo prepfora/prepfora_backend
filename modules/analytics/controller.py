@@ -5,12 +5,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.classes.return_type import ReturnType
 from common.database import get_db
+from common.exceptions.api_exception import APIException
+from common.exceptions.bad_request_exception import BadRequestException
 from common.exceptions.forbidden_exception import ForbiddenException
+from common.logger import logger
 from common.services.auth import verify_access_token
 from models.admin_model import Admin
+from models.examination_model import Type
 from modules.affiliate.schema import AffiliateAnalyticsResponse, ReferredUserResponse
 from modules.affiliate.service import AffiliateService, get_affiliate_service
-from modules.analytics.schema import AdminAnalyticsResponse
+from modules.analytics.schema import AdminAnalyticsResponse, GlobalExamPerformanceResponse
 from modules.analytics.service import AnalyticsService, get_analytics_service
 
 
@@ -64,6 +68,39 @@ async def get_analytics_dashboard(
     service: AnalyticsService = Depends(get_analytics_service),
 ) -> ReturnType[AdminAnalyticsResponse]:
     return await service.get_dashboard_metrics()
+
+
+@router.get("/performance/global", response_model=ReturnType[GlobalExamPerformanceResponse], status_code=200)
+async def get_global_exam_performance(
+    exam_type: str | None = Query(
+        None,
+        description="Optional filter: 'jamb' (includes utme) or 'neco'. Omit to return both.",
+    ),
+    type: Type | str | None = Query(
+        None,
+        description="Optional examination mode filter (practice or mock)",
+    ),
+    subject: str | None = Query(
+        None,
+        description="Optional subject filter (e.g. english, mathematics, physics)",
+    ),
+    service: AnalyticsService = Depends(get_analytics_service),
+) -> ReturnType[GlobalExamPerformanceResponse]:
+    """
+    Global platform performance for JAMB and NECO examinations broken down by subject.
+    """
+    try:
+        mode_str = type.value if hasattr(type, "value") else (str(type) if type else None)
+        return await service.get_global_exam_performance(
+            exam_type=exam_type,
+            exam_mode=mode_str,
+            subject=subject,
+        )
+    except APIException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get global exam performance: {e}")
+        raise BadRequestException(str(e))
 
 
 @router.get("/affiliate", response_model=ReturnType[AffiliateAnalyticsResponse], status_code=200)
